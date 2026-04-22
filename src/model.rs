@@ -94,8 +94,6 @@ pub struct RawCheck {
     pub conclusion: Option<String>,
     #[serde(default)]
     pub state: Option<String>,
-    #[serde(default, alias = "detailsUrl", alias = "targetUrl")]
-    pub url: Option<String>,
 }
 
 impl RawCheck {
@@ -135,7 +133,6 @@ impl RawCheck {
 pub struct CheckRun {
     pub name: String,
     pub state: CheckState,
-    pub url: Option<String>,
 }
 
 impl From<&RawCheck> for CheckRun {
@@ -143,7 +140,6 @@ impl From<&RawCheck> for CheckRun {
         CheckRun {
             name: raw.label().to_string(),
             state: raw.classify(),
-            url: raw.url.clone(),
         }
     }
 }
@@ -228,8 +224,6 @@ pub struct RawPr {
     is_draft: bool,
     #[serde(default)]
     mergeable: String,
-    #[serde(default, rename = "createdAt")]
-    created_at: Option<DateTime<Utc>>,
     #[serde(default, rename = "updatedAt")]
     updated_at: Option<DateTime<Utc>>,
     #[serde(default)]
@@ -261,7 +255,6 @@ pub struct PrSummary {
     pub base_ref: String,
     pub is_draft: bool,
     pub mergeable: Mergeable,
-    pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub url: String,
     pub review: ReviewState,
@@ -279,7 +272,6 @@ impl PrSummary {
             base_ref: r.base_ref.clone(),
             is_draft: r.is_draft,
             mergeable: Mergeable::from_str(&r.mergeable),
-            created_at: r.created_at,
             updated_at: r.updated_at,
             url: r.url.clone(),
             review: ReviewState::from_decision(&r.review_decision),
@@ -462,7 +454,6 @@ mod tests {
                 status: Some("COMPLETED".into()),
                 conclusion: Some("FAILURE".into()),
                 state: None,
-                url: None,
             },
             RawCheck {
                 name: Some("b".into()),
@@ -470,7 +461,6 @@ mod tests {
                 status: Some("IN_PROGRESS".into()),
                 conclusion: None,
                 state: None,
-                url: None,
             },
         ];
         assert_eq!(
@@ -487,7 +477,6 @@ mod tests {
             status: None,
             conclusion: None,
             state: Some("SUCCESS".into()),
-            url: Some("https://example.com".into()),
         };
         assert_eq!(raw.classify(), CheckState::Pass);
         assert_eq!(raw.label(), "legacy/ci");
