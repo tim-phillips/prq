@@ -25,16 +25,20 @@ impl Worker {
         let (req_tx, req_rx) = mpsc::channel::<Request>();
         let (res_tx, res_rx) = mpsc::channel::<Response>();
 
+        let viewer = gh::viewer_login().ok();
+
         thread::spawn(move || {
             while let Ok(req) = req_rx.recv() {
                 match req {
                     Request::Shutdown => break,
                     Request::FetchList { limit } => {
-                        let result = gh::list_prs(limit).map_err(|e| format!("{e:#}"));
+                        let result =
+                            gh::list_prs(limit, viewer.as_deref()).map_err(|e| format!("{e:#}"));
                         let _ = res_tx.send(Response::List(result));
                     }
                     Request::FetchDetail { number } => {
-                        let result = gh::view_pr(number).map_err(|e| format!("{e:#}"));
+                        let result =
+                            gh::view_pr(number, viewer.as_deref()).map_err(|e| format!("{e:#}"));
                         let _ = res_tx.send(Response::Detail { number, result });
                     }
                 }

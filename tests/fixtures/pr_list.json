@@ -2,7 +2,7 @@
   {
     "number": 101,
     "title": "Add fractional shards to donut",
-    "author": {"login": "alice", "is_bot": false},
+    "author": { "login": "alice", "is_bot": false },
     "headRefName": "alice/donut-shards",
     "isDraft": false,
     "mergeable": "MERGEABLE",
@@ -11,18 +11,39 @@
     "url": "https://github.com/example/repo/pull/101",
     "reviewDecision": "APPROVED",
     "statusCheckRollup": [
-      {"__typename": "CheckRun", "name": "ci / build", "status": "COMPLETED", "conclusion": "SUCCESS", "detailsUrl": "https://example.com/build"},
-      {"__typename": "CheckRun", "name": "ci / test",  "status": "COMPLETED", "conclusion": "SUCCESS", "detailsUrl": "https://example.com/test"}
+      {
+        "__typename": "CheckRun",
+        "name": "ci / build",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://example.com/build"
+      },
+      {
+        "__typename": "CheckRun",
+        "name": "ci / test",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://example.com/test"
+      }
     ],
     "reviewRequests": [],
     "latestReviews": [
-      {"author": {"login": "bob"}, "state": "APPROVED", "submittedAt": "2026-04-22T09:00:00Z"}
+      {
+        "author": { "login": "bob" },
+        "state": "APPROVED",
+        "submittedAt": "2026-04-22T09:00:00Z"
+      },
+      {
+        "author": { "login": "tim" },
+        "state": "APPROVED",
+        "submittedAt": "2026-04-22T09:10:00Z"
+      }
     ]
   },
   {
     "number": 102,
     "title": "Refactor oven temperature controller",
-    "author": {"login": "carol"},
+    "author": { "login": "carol" },
     "headRefName": "carol/oven-refactor",
     "isDraft": false,
     "mergeable": "CONFLICTING",
@@ -31,18 +52,38 @@
     "url": "https://github.com/example/repo/pull/102",
     "reviewDecision": "CHANGES_REQUESTED",
     "statusCheckRollup": [
-      {"__typename": "CheckRun", "name": "ci / build", "status": "COMPLETED", "conclusion": "SUCCESS"},
-      {"__typename": "CheckRun", "name": "ci / test",  "status": "COMPLETED", "conclusion": "FAILURE", "detailsUrl": "https://example.com/test"}
+      {
+        "__typename": "CheckRun",
+        "name": "ci / build",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      },
+      {
+        "__typename": "CheckRun",
+        "name": "ci / test",
+        "status": "COMPLETED",
+        "conclusion": "FAILURE",
+        "detailsUrl": "https://example.com/test"
+      }
     ],
-    "reviewRequests": [{"login": "dave"}],
+    "reviewRequests": [{ "login": "dave" }],
     "latestReviews": [
-      {"author": {"login": "erin"}, "state": "CHANGES_REQUESTED", "submittedAt": "2026-04-21T14:00:00Z"}
+      {
+        "author": { "login": "erin" },
+        "state": "CHANGES_REQUESTED",
+        "submittedAt": "2026-04-21T14:00:00Z"
+      },
+      {
+        "author": { "login": "tim" },
+        "state": "CHANGES_REQUESTED",
+        "submittedAt": "2026-04-21T14:30:00Z"
+      }
     ]
   },
   {
     "number": 103,
     "title": "Wire up glaze pipeline",
-    "author": {"login": "frank"},
+    "author": { "login": "frank" },
     "headRefName": "frank/glaze",
     "isDraft": false,
     "mergeable": "UNKNOWN",
@@ -51,16 +92,29 @@
     "url": "https://github.com/example/repo/pull/103",
     "reviewDecision": "REVIEW_REQUIRED",
     "statusCheckRollup": [
-      {"__typename": "CheckRun", "name": "ci / build", "status": "IN_PROGRESS", "conclusion": null},
-      {"__typename": "StatusContext", "context": "legacy/lint", "state": "PENDING"}
+      {
+        "__typename": "CheckRun",
+        "name": "ci / build",
+        "status": "IN_PROGRESS",
+        "conclusion": null
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "legacy/lint",
+        "state": "PENDING"
+      }
     ],
-    "reviewRequests": [{"login": "gina"}, {"login": "heidi"}],
+    "reviewRequests": [
+      { "login": "gina" },
+      { "login": "heidi" },
+      { "login": "tim" }
+    ],
     "latestReviews": []
   },
   {
     "number": 104,
     "title": "WIP: sprinkle quantum entangler",
-    "author": {"login": "ivan"},
+    "author": { "login": "ivan" },
     "headRefName": "ivan/sprinkles",
     "isDraft": true,
     "mergeable": "UNKNOWN",

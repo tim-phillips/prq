@@ -32,7 +32,23 @@ pub fn check_repo_context() -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-pub fn list_prs(limit: u32) -> Result<Vec<PrSummary>> {
+pub fn viewer_login() -> Result<String> {
+    let out = Command::new("gh")
+        .args(["api", "user", "--jq", ".login"])
+        .output()
+        .context("failed to run `gh api user`")?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        bail!("`gh api user` failed: {stderr}");
+    }
+    let login = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if login.is_empty() {
+        bail!("`gh api user` returned an empty login");
+    }
+    Ok(login)
+}
+
+pub fn list_prs(limit: u32, viewer: Option<&str>) -> Result<Vec<PrSummary>> {
     let out = Command::new("gh")
         .args([
             "pr",
@@ -51,10 +67,10 @@ pub fn list_prs(limit: u32) -> Result<Vec<PrSummary>> {
         bail!("`gh pr list` failed: {stderr}");
     }
     let stdout = std::str::from_utf8(&out.stdout).context("gh pr list: non-utf8 output")?;
-    parse_pr_list(stdout).context("failed to parse `gh pr list` JSON")
+    parse_pr_list(stdout, viewer).context("failed to parse `gh pr list` JSON")
 }
 
-pub fn view_pr(number: u32) -> Result<PrDetail> {
+pub fn view_pr(number: u32, viewer: Option<&str>) -> Result<PrDetail> {
     let num = number.to_string();
     let out = Command::new("gh")
         .args(["pr", "view", &num, "--json", VIEW_FIELDS])
@@ -65,5 +81,5 @@ pub fn view_pr(number: u32) -> Result<PrDetail> {
         bail!("`gh pr view {number}` failed: {stderr}");
     }
     let stdout = std::str::from_utf8(&out.stdout).context("gh pr view: non-utf8 output")?;
-    parse_pr_detail(stdout).context("failed to parse `gh pr view` JSON")
+    parse_pr_detail(stdout, viewer).context("failed to parse `gh pr view` JSON")
 }

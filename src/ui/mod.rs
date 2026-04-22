@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
 use crate::app::{App, ViewMode};
-use crate::model::{CheckRollup, CheckState, ReviewState};
+use crate::model::{CheckRollup, CheckState, MyReviewState, ReviewState};
 
 pub mod detail;
 pub mod list;
@@ -83,6 +83,15 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
         Line::from("r            refresh now"),
         Line::from("?            toggle this help"),
         Line::from("q / Ctrl-C   quit"),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Me column",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from("!            review requested from you"),
+        Line::from("…            you requested changes, waiting on author"),
+        Line::from("✓            you approved"),
+        Line::from("·            you commented"),
     ];
     let para = Paragraph::new(text)
         .block(Block::default().borders(Borders::ALL).title(" help "))
@@ -107,6 +116,24 @@ fn centered_rect(pct_x: u16, pct_y: u16, area: Rect) -> Rect {
             Constraint::Percentage((100 - pct_x) / 2),
         ])
         .split(vert[1])[1]
+}
+
+pub fn my_review_cell(state: MyReviewState) -> Span<'static> {
+    match state {
+        MyReviewState::ReviewRequested => {
+            Span::styled("!", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        }
+        MyReviewState::WaitingOnAuthor => Span::styled("…", Style::default().fg(Color::Magenta)),
+        MyReviewState::Approved => Span::styled(
+            "✓",
+            Style::default().fg(Color::Green).add_modifier(Modifier::DIM),
+        ),
+        MyReviewState::Commented => Span::styled(
+            "·",
+            Style::default().fg(Color::Blue).add_modifier(Modifier::DIM),
+        ),
+        MyReviewState::NotInvolved => Span::raw(" "),
+    }
 }
 
 pub fn review_cell(state: ReviewState) -> Span<'static> {

@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 
 use crate::app::App;
-use crate::ui::{checks_cell, format_age, review_cell};
+use crate::ui::{checks_cell, format_age, my_review_cell, review_cell};
 
 pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
     if app.loading_list && app.prs.is_empty() {
@@ -20,7 +20,7 @@ pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
         return;
     }
 
-    let header = Row::new(vec!["#", "R", "C", "Title", "Author", "Branch", "Age"])
+    let header = Row::new(vec!["#", "Me", "R", "C", "Title", "Author", "Branch", "Age"])
         .style(Style::default().add_modifier(Modifier::BOLD));
 
     let rows: Vec<Row> = app
@@ -39,6 +39,7 @@ pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
             };
             Row::new(vec![
                 Cell::from(Span::styled(num, dim)),
+                Cell::from(Line::from(my_review_cell(pr.my_review))),
                 Cell::from(Line::from(review_cell(pr.review))),
                 Cell::from(Line::from(checks_cell(&pr.checks))),
                 Cell::from(Span::styled(pr.title.clone(), dim)),
@@ -51,6 +52,7 @@ pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
 
     let widths = [
         Constraint::Length(6),
+        Constraint::Length(2),
         Constraint::Length(2),
         Constraint::Length(2),
         Constraint::Min(20),

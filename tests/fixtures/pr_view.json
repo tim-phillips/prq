@@ -2,7 +2,7 @@
   "number": 101,
   "title": "Add fractional shards to donut",
   "body": "Splits each donut into N fractional shards so the glaze pipeline can parallelize.\n\n- Adds Shard type\n- Updates oven scheduler",
-  "author": {"login": "alice"},
+  "author": { "login": "alice" },
   "headRefName": "alice/donut-shards",
   "baseRefName": "main",
   "isDraft": false,
@@ -12,15 +12,36 @@
   "url": "https://github.com/example/repo/pull/101",
   "reviewDecision": "APPROVED",
   "statusCheckRollup": [
-    {"__typename": "CheckRun", "name": "ci / build", "status": "COMPLETED", "conclusion": "SUCCESS", "detailsUrl": "https://example.com/build"},
-    {"__typename": "CheckRun", "name": "ci / test",  "status": "COMPLETED", "conclusion": "SUCCESS", "detailsUrl": "https://example.com/test"}
+    {
+      "__typename": "CheckRun",
+      "name": "ci / build",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://example.com/build"
+    },
+    {
+      "__typename": "CheckRun",
+      "name": "ci / test",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://example.com/test"
+    }
   ],
-  "reviewRequests": [{"login": "carol"}],
+  "reviewRequests": [{ "login": "carol" }],
   "latestReviews": [
-    {"author": {"login": "bob"}, "state": "APPROVED", "submittedAt": "2026-04-22T09:00:00Z"}
+    {
+      "author": { "login": "bob" },
+      "state": "APPROVED",
+      "submittedAt": "2026-04-22T09:00:00Z"
+    },
+    {
+      "author": { "login": "tim" },
+      "state": "APPROVED",
+      "submittedAt": "2026-04-22T09:10:00Z"
+    }
   ],
   "additions": 120,
   "deletions": 30,
   "changedFiles": 5,
-  "labels": [{"name": "backend"}, {"name": "enhancement"}]
+  "labels": [{ "name": "backend" }, { "name": "enhancement" }]
 }

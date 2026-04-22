@@ -156,6 +156,36 @@ pub enum ReviewerState {
     Pending,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MyReviewState {
+    NotInvolved,
+    ReviewRequested,
+    WaitingOnAuthor,
+    Approved,
+    Commented,
+}
+
+impl MyReviewState {
+    fn resolve(r: &RawPr, viewer: Option<&str>) -> Self {
+        let Some(viewer) = viewer else {
+            return MyReviewState::NotInvolved;
+        };
+        if r.review_requests.iter().any(|req| req.login == viewer) {
+            return MyReviewState::ReviewRequested;
+        }
+        let mine = r
+            .latest_reviews
+            .iter()
+            .find(|rv| rv.author.login == viewer);
+        match mine.map(|rv| rv.state.as_str()) {
+            Some("APPROVED") => MyReviewState::Approved,
+            Some("CHANGES_REQUESTED") => MyReviewState::WaitingOnAuthor,
+            Some("COMMENTED") => MyReviewState::Commented,
+            _ => MyReviewState::NotInvolved,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Reviewer {
     pub login: String,
@@ -235,11 +265,12 @@ pub struct PrSummary {
     pub updated_at: Option<DateTime<Utc>>,
     pub url: String,
     pub review: ReviewState,
+    pub my_review: MyReviewState,
     pub checks: CheckRollup,
 }
 
-impl From<&RawPr> for PrSummary {
-    fn from(r: &RawPr) -> Self {
+impl PrSummary {
+    pub fn from_raw(r: &RawPr, viewer: Option<&str>) -> Self {
         PrSummary {
             number: r.number,
             title: r.title.clone(),
@@ -252,6 +283,7 @@ impl From<&RawPr> for PrSummary {
             updated_at: r.updated_at,
             url: r.url.clone(),
             review: ReviewState::from_decision(&r.review_decision),
+            my_review: MyReviewState::resolve(r, viewer),
             checks: CheckRollup::from_raw(&r.status_check_rollup),
         }
     }
@@ -268,8 +300,8 @@ pub struct PrDetail {
     pub reviewers: Vec<Reviewer>,
 }
 
-impl From<&RawPr> for PrDetail {
-    fn from(r: &RawPr) -> Self {
+impl PrDetail {
+    pub fn from_raw(r: &RawPr, viewer: Option<&str>) -> Self {
         let mut reviewers: Vec<Reviewer> = r
             .latest_reviews
             .iter()
@@ -305,7 +337,7 @@ impl From<&RawPr> for PrDetail {
         }
 
         PrDetail {
-            summary: PrSummary::from(r),
+            summary: PrSummary::from_raw(r, viewer),
             body: r.body.clone().unwrap_or_default(),
             additions: r.additions.unwrap_or(0),
             deletions: r.deletions.unwrap_or(0),
@@ -316,14 +348,17 @@ impl From<&RawPr> for PrDetail {
     }
 }
 
-pub fn parse_pr_list(json: &str) -> anyhow::Result<Vec<PrSummary>> {
+pub fn parse_pr_list(json: &str, viewer: Option<&str>) -> anyhow::Result<Vec<PrSummary>> {
     let raws: Vec<RawPr> = serde_json::from_str(json)?;
-    Ok(raws.iter().map(PrSummary::from).collect())
+    Ok(raws
+        .iter()
+        .map(|r| PrSummary::from_raw(r, viewer))
+        .collect())
 }
 
-pub fn parse_pr_detail(json: &str) -> anyhow::Result<PrDetail> {
+pub fn parse_pr_detail(json: &str, viewer: Option<&str>) -> anyhow::Result<PrDetail> {
     let raw: RawPr = serde_json::from_str(json)?;
-    Ok(PrDetail::from(&raw))
+    Ok(PrDetail::from_raw(&raw, viewer))
 }
 
 #[cfg(test)]
@@ -335,7 +370,7 @@ mod tests {
 
     #[test]
     fn parses_list_fixture() {
-        let prs = parse_pr_list(LIST_FIXTURE).unwrap();
+        let prs = parse_pr_list(LIST_FIXTURE, Some("tim")).unwrap();
         assert_eq!(prs.len(), 4);
 
         let approved = &prs[0];
@@ -346,27 +381,48 @@ mod tests {
         assert_eq!(approved.author, "alice");
         assert!(!approved.is_draft);
         assert_eq!(approved.mergeable, Mergeable::Mergeable);
+        assert_eq!(approved.my_review, MyReviewState::Approved);
 
         let changes = &prs[1];
         assert_eq!(changes.review, ReviewState::ChangesRequested);
         assert_eq!(changes.checks.overall, Some(CheckState::Fail));
         assert_eq!(changes.checks.failing, 1);
         assert_eq!(changes.checks.passing, 1);
+        assert_eq!(changes.my_review, MyReviewState::WaitingOnAuthor);
 
         let pending = &prs[2];
         assert_eq!(pending.review, ReviewState::ReviewRequired);
         assert_eq!(pending.checks.overall, Some(CheckState::Pending));
         assert!(pending.checks.pending >= 1);
+        assert_eq!(pending.my_review, MyReviewState::ReviewRequested);
 
         let draft = &prs[3];
         assert!(draft.is_draft);
         assert_eq!(draft.review, ReviewState::None);
         assert_eq!(draft.checks.overall, None);
+        assert_eq!(draft.my_review, MyReviewState::NotInvolved);
+    }
+
+    #[test]
+    fn my_review_waiting_on_author_is_distinct_from_review_requested() {
+        let prs = parse_pr_list(LIST_FIXTURE, Some("tim")).unwrap();
+        let waiting = prs.iter().find(|p| p.number == 102).unwrap();
+        let requested = prs.iter().find(|p| p.number == 103).unwrap();
+        assert_eq!(waiting.my_review, MyReviewState::WaitingOnAuthor);
+        assert_eq!(requested.my_review, MyReviewState::ReviewRequested);
+    }
+
+    #[test]
+    fn no_viewer_means_all_not_involved() {
+        let prs = parse_pr_list(LIST_FIXTURE, None).unwrap();
+        for pr in &prs {
+            assert_eq!(pr.my_review, MyReviewState::NotInvolved);
+        }
     }
 
     #[test]
     fn parses_view_fixture() {
-        let detail = parse_pr_detail(VIEW_FIXTURE).unwrap();
+        let detail = parse_pr_detail(VIEW_FIXTURE, Some("tim")).unwrap();
         assert_eq!(detail.summary.number, 101);
         assert_eq!(detail.additions, 120);
         assert_eq!(detail.deletions, 30);
@@ -382,6 +438,7 @@ mod tests {
             .iter()
             .find(|r| r.state == ReviewerState::Pending);
         assert!(pending_reviewer.is_some());
+        assert_eq!(detail.summary.my_review, MyReviewState::Approved);
     }
 
     #[test]
