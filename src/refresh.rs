@@ -12,7 +12,10 @@ pub enum Request {
 
 pub enum Response {
     List(Result<Vec<PrSummary>, String>),
-    Detail { number: u32, result: Result<PrDetail, String> },
+    Detail {
+        number: u32,
+        result: Result<PrDetail, String>,
+    },
 }
 
 pub struct Worker {

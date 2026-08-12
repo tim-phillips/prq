@@ -20,6 +20,16 @@ impl ReviewState {
             _ => ReviewState::Reviewed,
         }
     }
+
+    fn urgency(self) -> u8 {
+        match self {
+            ReviewState::ChangesRequested => 4,
+            ReviewState::ReviewRequired => 3,
+            ReviewState::Reviewed => 2,
+            ReviewState::None => 1,
+            ReviewState::Approved => 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,6 +172,16 @@ pub enum MyReviewState {
 }
 
 impl MyReviewState {
+    fn urgency(self) -> u8 {
+        match self {
+            MyReviewState::ReviewRequested => 4,
+            MyReviewState::WaitingOnAuthor => 3,
+            MyReviewState::Commented => 2,
+            MyReviewState::Approved => 1,
+            MyReviewState::NotInvolved => 0,
+        }
+    }
+
     fn resolve(r: &RawPr, viewer: Option<&str>) -> Self {
         let Some(viewer) = viewer else {
             return MyReviewState::NotInvolved;
@@ -169,10 +189,7 @@ impl MyReviewState {
         if r.review_requests.iter().any(|req| req.login == viewer) {
             return MyReviewState::ReviewRequested;
         }
-        let mine = r
-            .latest_reviews
-            .iter()
-            .find(|rv| rv.author.login == viewer);
+        let mine = r.latest_reviews.iter().find(|rv| rv.author.login == viewer);
         match mine.map(|rv| rv.state.as_str()) {
             Some("APPROVED") => MyReviewState::Approved,
             Some("CHANGES_REQUESTED") => MyReviewState::WaitingOnAuthor,
@@ -340,6 +357,138 @@ impl PrDetail {
     }
 }
 
+/// One entry in the PR list: either a standalone PR (`prs.len() == 1`) or a
+/// stack of dependent PRs ordered bottom (closest to trunk) to top.
+#[derive(Debug, Clone)]
+pub struct PrStack {
+    pub prs: Vec<PrSummary>,
+}
+
+impl PrStack {
+    pub fn is_stack(&self) -> bool {
+        self.prs.len() > 1
+    }
+
+    pub fn bottom(&self) -> &PrSummary {
+        &self.prs[0]
+    }
+
+    pub fn newest_update(&self) -> Option<DateTime<Utc>> {
+        self.prs.iter().filter_map(|p| p.updated_at).max()
+    }
+
+    pub fn all_drafts(&self) -> bool {
+        self.prs.iter().all(|p| p.is_draft)
+    }
+
+    pub fn review_rollup(&self) -> ReviewState {
+        self.prs
+            .iter()
+            .map(|p| p.review)
+            .max_by_key(|r| r.urgency())
+            .unwrap_or(ReviewState::None)
+    }
+
+    pub fn my_review_rollup(&self) -> MyReviewState {
+        self.prs
+            .iter()
+            .map(|p| p.my_review)
+            .max_by_key(|r| r.urgency())
+            .unwrap_or(MyReviewState::NotInvolved)
+    }
+
+    pub fn checks_rollup(&self) -> CheckRollup {
+        let mut rollup = CheckRollup::default();
+        let mut any = false;
+        for pr in &self.prs {
+            rollup.passing += pr.checks.passing;
+            rollup.failing += pr.checks.failing;
+            rollup.pending += pr.checks.pending;
+            rollup.skipped += pr.checks.skipped;
+            any |= pr.checks.overall.is_some();
+        }
+        rollup.overall = if !any {
+            None
+        } else if rollup.failing > 0 {
+            Some(CheckState::Fail)
+        } else if rollup.pending > 0 {
+            Some(CheckState::Pending)
+        } else if rollup.passing > 0 {
+            Some(CheckState::Pass)
+        } else {
+            Some(CheckState::None)
+        };
+        rollup
+    }
+}
+
+/// Group open PRs into stacks: a PR whose base branch is another open PR's
+/// head branch is stacked on top of it (how gh-stack and similar tools model
+/// stacks). Each group is ordered bottom to top; groups are sorted by the
+/// most recently updated PR they contain.
+pub fn group_stacks(prs: Vec<PrSummary>) -> Vec<PrStack> {
+    use std::collections::HashMap;
+
+    let mut head_to_idx: HashMap<&str, usize> = HashMap::new();
+    for (i, pr) in prs.iter().enumerate() {
+        head_to_idx.entry(pr.head_ref.as_str()).or_insert(i);
+    }
+
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); prs.len()];
+    let mut has_parent = vec![false; prs.len()];
+    for (i, pr) in prs.iter().enumerate() {
+        if pr.base_ref.is_empty() {
+            continue;
+        }
+        if let Some(&parent) = head_to_idx.get(pr.base_ref.as_str())
+            && parent != i
+        {
+            children[parent].push(i);
+            has_parent[i] = true;
+        }
+    }
+    for c in &mut children {
+        c.sort_by_key(|&i| prs[i].number);
+    }
+
+    let mut visited = vec![false; prs.len()];
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for root in 0..prs.len() {
+        if has_parent[root] || visited[root] {
+            continue;
+        }
+        let mut order = Vec::new();
+        let mut pending = vec![root];
+        while let Some(i) = pending.pop() {
+            if visited[i] {
+                continue;
+            }
+            visited[i] = true;
+            order.push(i);
+            for &c in children[i].iter().rev() {
+                pending.push(c);
+            }
+        }
+        groups.push(order);
+    }
+    // A base-branch cycle has no root; fall back to standalone entries.
+    for (i, seen) in visited.iter().enumerate() {
+        if !seen {
+            groups.push(vec![i]);
+        }
+    }
+
+    let mut slots: Vec<Option<PrSummary>> = prs.into_iter().map(Some).collect();
+    let mut out: Vec<PrStack> = groups
+        .into_iter()
+        .map(|idxs| PrStack {
+            prs: idxs.into_iter().map(|i| slots[i].take().unwrap()).collect(),
+        })
+        .collect();
+    out.sort_by_key(|s| std::cmp::Reverse(s.newest_update()));
+    out
+}
+
 pub fn parse_pr_list(json: &str, viewer: Option<&str>) -> anyhow::Result<Vec<PrSummary>> {
     let raws: Vec<RawPr> = serde_json::from_str(json)?;
     let mut prs: Vec<PrSummary> = raws
@@ -360,6 +509,7 @@ mod tests {
     use super::*;
 
     const LIST_FIXTURE: &str = include_str!("../tests/fixtures/pr_list.json");
+    const STACKED_FIXTURE: &str = include_str!("../tests/fixtures/pr_list_stacked.json");
     const VIEW_FIXTURE: &str = include_str!("../tests/fixtures/pr_view.json");
 
     #[test]
@@ -440,6 +590,81 @@ mod tests {
     }
 
     #[test]
+    fn groups_stacked_prs_by_base_branch() {
+        let prs = parse_pr_list(STACKED_FIXTURE, Some("tim")).unwrap();
+        let groups = group_stacks(prs);
+
+        assert_eq!(groups.len(), 3);
+
+        let stack = groups.iter().find(|g| g.is_stack()).unwrap();
+        assert_eq!(
+            stack.prs.iter().map(|p| p.number).collect::<Vec<_>>(),
+            vec![201, 202, 203]
+        );
+        assert_eq!(stack.bottom().number, 201);
+
+        // Groups sort by their newest member: #204 (13:00), stack (12:00), #205 (09:00).
+        assert_eq!(groups[0].bottom().number, 204);
+        assert!(groups[1].is_stack());
+        assert_eq!(groups[2].bottom().number, 205);
+    }
+
+    #[test]
+    fn stack_rollups_surface_most_urgent_state() {
+        let prs = parse_pr_list(STACKED_FIXTURE, Some("tim")).unwrap();
+        let groups = group_stacks(prs);
+        let stack = groups.iter().find(|g| g.is_stack()).unwrap();
+
+        // 201 approved, 202 review required, 203 no decision.
+        assert_eq!(stack.review_rollup(), ReviewState::ReviewRequired);
+        // Review requested from tim on 202 beats tim's approval on 201.
+        assert_eq!(stack.my_review_rollup(), MyReviewState::ReviewRequested);
+        // 201 passing + 202 pending → pending overall.
+        assert_eq!(stack.checks_rollup().overall, Some(CheckState::Pending));
+        assert!(!stack.all_drafts());
+    }
+
+    #[test]
+    fn tree_shaped_stack_groups_all_descendants() {
+        // One parent PR with three siblings based on it, like a feature
+        // branch with several follow-ups.
+        let json = r#"[
+            {"number": 10, "title": "base", "headRefName": "feat", "baseRefName": "main", "updatedAt": "2026-04-22T10:00:00Z"},
+            {"number": 12, "title": "b", "headRefName": "feat-b", "baseRefName": "feat", "updatedAt": "2026-04-22T11:00:00Z"},
+            {"number": 11, "title": "a", "headRefName": "feat-a", "baseRefName": "feat", "updatedAt": "2026-04-22T12:00:00Z"},
+            {"number": 13, "title": "c", "headRefName": "feat-c", "baseRefName": "feat", "updatedAt": "2026-04-22T13:00:00Z"}
+        ]"#;
+        let prs = parse_pr_list(json, None).unwrap();
+        let groups = group_stacks(prs);
+        assert_eq!(groups.len(), 1);
+        let stack = &groups[0];
+        assert_eq!(stack.bottom().number, 10);
+        // Siblings follow the parent in PR-number order.
+        assert_eq!(
+            stack.prs.iter().map(|p| p.number).collect::<Vec<_>>(),
+            vec![10, 11, 12, 13]
+        );
+    }
+
+    #[test]
+    fn base_branch_cycle_falls_back_to_standalone() {
+        let json = r#"[
+            {"number": 1, "title": "a", "headRefName": "x", "baseRefName": "y", "updatedAt": "2026-04-22T10:00:00Z"},
+            {"number": 2, "title": "b", "headRefName": "y", "baseRefName": "x", "updatedAt": "2026-04-22T11:00:00Z"}
+        ]"#;
+        let prs = parse_pr_list(json, None).unwrap();
+        let groups = group_stacks(prs);
+        assert_eq!(groups.len(), 2);
+        assert!(groups.iter().all(|g| !g.is_stack()));
+    }
+
+    #[test]
+    fn parses_base_ref_from_list() {
+        let prs = parse_pr_list(LIST_FIXTURE, None).unwrap();
+        assert!(prs.iter().all(|p| p.base_ref == "main"));
+    }
+
+    #[test]
     fn rollup_empty_is_none() {
         let r = CheckRollup::from_raw(&[]);
         assert_eq!(r.overall, None);
@@ -463,10 +688,7 @@ mod tests {
                 state: None,
             },
         ];
-        assert_eq!(
-            CheckRollup::from_raw(&raws).overall,
-            Some(CheckState::Fail)
-        );
+        assert_eq!(CheckRollup::from_raw(&raws).overall, Some(CheckState::Fail));
     }
 
     #[test]

@@ -73,7 +73,10 @@ fn run_app(
 
 fn handle_key(app: &mut App, worker: &Worker, key: KeyEvent) {
     if app.show_help {
-        if matches!(key.code, KeyCode::Char('?') | KeyCode::Esc | KeyCode::Char('q')) {
+        if matches!(
+            key.code,
+            KeyCode::Char('?') | KeyCode::Esc | KeyCode::Char('q')
+        ) {
             app.show_help = false;
         }
         return;
@@ -123,6 +126,9 @@ fn handle_list_key(app: &mut App, worker: &Worker, key: KeyEvent) {
         KeyCode::Char('g') | KeyCode::Home => app.select_first(),
         KeyCode::Char('G') | KeyCode::End => app.select_last(),
         KeyCode::Enter => {
+            if app.toggle_selected_stack() {
+                return;
+            }
             if let Some(pr) = app.selected_pr() {
                 let n = pr.number;
                 app.enter_detail();
@@ -135,7 +141,7 @@ fn handle_list_key(app: &mut App, worker: &Worker, key: KeyEvent) {
 
 fn open_selected(app: &mut App) {
     let url = match app.mode {
-        ViewMode::List => app.selected_pr().map(|p| p.url.clone()),
+        ViewMode::List => app.selected_url(),
         ViewMode::Detail(_) => app.detail.as_ref().map(|d| d.summary.url.clone()),
     };
     if let Some(url) = url {

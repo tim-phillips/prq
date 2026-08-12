@@ -1,8 +1,9 @@
+use std::collections::HashSet;
 use std::time::Instant;
 
 use ratatui::widgets::TableState;
 
-use crate::model::{PrDetail, PrSummary};
+use crate::model::{PrDetail, PrStack, PrSummary, group_stacks};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -10,9 +11,19 @@ pub enum ViewMode {
     Detail(u32),
 }
 
+/// One visible row in the list: a collapsible stack header, or a PR
+/// (standalone, or a member of an expanded stack).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListRow {
+    StackHeader(usize),
+    Pr { group: usize, member: usize },
+}
+
 pub struct App {
     pub repo: String,
-    pub prs: Vec<PrSummary>,
+    pub groups: Vec<PrStack>,
+    pub rows: Vec<ListRow>,
+    expanded: HashSet<u32>,
     pub table_state: TableState,
     pub mode: ViewMode,
     pub loading_list: bool,
@@ -33,7 +44,9 @@ impl App {
         table_state.select(Some(0));
         App {
             repo,
-            prs: Vec::new(),
+            groups: Vec::new(),
+            rows: Vec::new(),
+            expanded: HashSet::new(),
             table_state,
             mode: ViewMode::List,
             loading_list: true,
@@ -49,17 +62,82 @@ impl App {
         }
     }
 
+    pub fn pr_count(&self) -> usize {
+        self.groups.iter().map(|g| g.prs.len()).sum()
+    }
+
+    pub fn is_expanded(&self, group: usize) -> bool {
+        self.groups
+            .get(group)
+            .is_some_and(|g| self.expanded.contains(&g.bottom().number))
+    }
+
+    fn rebuild_rows(&mut self) {
+        self.rows.clear();
+        for (g, stack) in self.groups.iter().enumerate() {
+            if stack.is_stack() {
+                self.rows.push(ListRow::StackHeader(g));
+                if self.expanded.contains(&stack.bottom().number) {
+                    for m in 0..stack.prs.len() {
+                        self.rows.push(ListRow::Pr {
+                            group: g,
+                            member: m,
+                        });
+                    }
+                }
+            } else {
+                self.rows.push(ListRow::Pr {
+                    group: g,
+                    member: 0,
+                });
+            }
+        }
+    }
+
+    pub fn selected_row(&self) -> Option<ListRow> {
+        self.rows.get(self.table_state.selected()?).copied()
+    }
+
     pub fn selected_pr(&self) -> Option<&PrSummary> {
-        let idx = self.table_state.selected()?;
-        self.prs.get(idx)
+        match self.selected_row()? {
+            ListRow::Pr { group, member } => self.groups.get(group)?.prs.get(member),
+            ListRow::StackHeader(_) => None,
+        }
+    }
+
+    /// URL to open for the selection; a stack header opens its bottom PR.
+    pub fn selected_url(&self) -> Option<String> {
+        match self.selected_row()? {
+            ListRow::Pr { group, member } => {
+                Some(self.groups.get(group)?.prs.get(member)?.url.clone())
+            }
+            ListRow::StackHeader(g) => Some(self.groups.get(g)?.bottom().url.clone()),
+        }
+    }
+
+    /// Expand or collapse the selected stack header. Returns false when the
+    /// selection is not a stack header.
+    pub fn toggle_selected_stack(&mut self) -> bool {
+        let Some(ListRow::StackHeader(g)) = self.selected_row() else {
+            return false;
+        };
+        let bottom = self.groups[g].bottom().number;
+        if !self.expanded.remove(&bottom) {
+            self.expanded.insert(bottom);
+        }
+        self.rebuild_rows();
+        if let Some(idx) = self.rows.iter().position(|r| *r == ListRow::StackHeader(g)) {
+            self.table_state.select(Some(idx));
+        }
+        true
     }
 
     pub fn select_next(&mut self) {
-        if self.prs.is_empty() {
+        if self.rows.is_empty() {
             return;
         }
         let new = match self.table_state.selected() {
-            Some(i) if i + 1 < self.prs.len() => i + 1,
+            Some(i) if i + 1 < self.rows.len() => i + 1,
             Some(i) => i,
             None => 0,
         };
@@ -67,7 +145,7 @@ impl App {
     }
 
     pub fn select_prev(&mut self) {
-        if self.prs.is_empty() {
+        if self.rows.is_empty() {
             return;
         }
         let new = match self.table_state.selected() {
@@ -78,31 +156,59 @@ impl App {
     }
 
     pub fn select_first(&mut self) {
-        if !self.prs.is_empty() {
+        if !self.rows.is_empty() {
             self.table_state.select(Some(0));
         }
     }
 
     pub fn select_last(&mut self) {
-        if !self.prs.is_empty() {
-            self.table_state.select(Some(self.prs.len() - 1));
+        if !self.rows.is_empty() {
+            self.table_state.select(Some(self.rows.len() - 1));
         }
     }
 
     pub fn apply_prs(&mut self, prs: Vec<PrSummary>) {
-        let keep_number = self.selected_pr().map(|p| p.number);
-        self.prs = prs;
-        if self.prs.is_empty() {
+        let keep = self.selected_anchor();
+        self.groups = group_stacks(prs);
+        let live: HashSet<u32> = self
+            .groups
+            .iter()
+            .filter(|g| g.is_stack())
+            .map(|g| g.bottom().number)
+            .collect();
+        self.expanded.retain(|n| live.contains(n));
+        self.rebuild_rows();
+        if self.rows.is_empty() {
             self.table_state.select(None);
-        } else if let Some(n) = keep_number {
-            let idx = self.prs.iter().position(|p| p.number == n).unwrap_or(0);
-            self.table_state.select(Some(idx));
         } else {
-            self.table_state.select(Some(0));
+            let idx = keep.and_then(|n| self.row_index_for(n)).unwrap_or(0);
+            self.table_state.select(Some(idx));
         }
         self.loading_list = false;
         self.last_refresh = Some(Instant::now());
         self.last_error = None;
+    }
+
+    /// PR number identifying the current selection, used to re-anchor it
+    /// after a refresh (a header is identified by its bottom PR).
+    fn selected_anchor(&self) -> Option<u32> {
+        match self.selected_row()? {
+            ListRow::Pr { group, member } => Some(self.groups[group].prs[member].number),
+            ListRow::StackHeader(g) => Some(self.groups[g].bottom().number),
+        }
+    }
+
+    fn row_index_for(&self, number: u32) -> Option<usize> {
+        let exact = self.rows.iter().position(|r| {
+            matches!(*r, ListRow::Pr { group, member }
+                if self.groups[group].prs[member].number == number)
+        });
+        exact.or_else(|| {
+            self.rows.iter().position(|r| {
+                matches!(*r, ListRow::StackHeader(g)
+                    if self.groups[g].prs.iter().any(|p| p.number == number))
+            })
+        })
     }
 
     pub fn apply_list_error(&mut self, err: String) {
@@ -142,5 +248,107 @@ impl App {
             None => false,
             Some(t) => t.elapsed().as_secs() >= self.refresh_interval_secs,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::parse_pr_list;
+
+    const STACKED_FIXTURE: &str = include_str!("../tests/fixtures/pr_list_stacked.json");
+
+    fn app_with_fixture() -> App {
+        let mut app = App::new("example/repo".into(), 60, true, 100);
+        let prs = parse_pr_list(STACKED_FIXTURE, Some("tim")).unwrap();
+        app.apply_prs(prs);
+        app
+    }
+
+    #[test]
+    fn stacks_collapse_to_one_row() {
+        let app = app_with_fixture();
+        assert_eq!(app.pr_count(), 5);
+        // 3-PR stack collapses to a header, plus two standalone PRs.
+        assert_eq!(app.rows.len(), 3);
+        assert!(
+            app.rows
+                .iter()
+                .any(|r| matches!(r, ListRow::StackHeader(_)))
+        );
+    }
+
+    #[test]
+    fn toggle_expands_and_collapses_stack() {
+        let mut app = app_with_fixture();
+        let header_idx = app
+            .rows
+            .iter()
+            .position(|r| matches!(r, ListRow::StackHeader(_)))
+            .unwrap();
+        app.table_state.select(Some(header_idx));
+
+        assert!(app.toggle_selected_stack());
+        assert_eq!(app.rows.len(), 6);
+        // Selection stays on the header.
+        assert!(matches!(app.selected_row(), Some(ListRow::StackHeader(_))));
+        // Members follow the header, bottom to top.
+        let member_numbers: Vec<u32> = app.rows[header_idx + 1..header_idx + 4]
+            .iter()
+            .map(|r| match *r {
+                ListRow::Pr { group, member } => app.groups[group].prs[member].number,
+                _ => panic!("expected PR row"),
+            })
+            .collect();
+        assert_eq!(member_numbers, vec![201, 202, 203]);
+
+        assert!(app.toggle_selected_stack());
+        assert_eq!(app.rows.len(), 3);
+    }
+
+    #[test]
+    fn toggle_is_noop_on_pr_row() {
+        let mut app = app_with_fixture();
+        let pr_idx = app
+            .rows
+            .iter()
+            .position(|r| matches!(r, ListRow::Pr { .. }))
+            .unwrap();
+        app.table_state.select(Some(pr_idx));
+        assert!(!app.toggle_selected_stack());
+    }
+
+    #[test]
+    fn selection_and_expansion_survive_refresh() {
+        let mut app = app_with_fixture();
+        let header_idx = app
+            .rows
+            .iter()
+            .position(|r| matches!(r, ListRow::StackHeader(_)))
+            .unwrap();
+        app.table_state.select(Some(header_idx));
+        app.toggle_selected_stack();
+
+        // Select a member inside the expanded stack, then refresh.
+        app.table_state.select(Some(header_idx + 2));
+        let selected = app.selected_pr().unwrap().number;
+        let prs = parse_pr_list(STACKED_FIXTURE, Some("tim")).unwrap();
+        app.apply_prs(prs);
+
+        assert_eq!(app.rows.len(), 6); // still expanded
+        assert_eq!(app.selected_pr().unwrap().number, selected);
+    }
+
+    #[test]
+    fn header_selection_falls_back_after_member_collapses() {
+        let mut app = app_with_fixture();
+        let header_idx = app
+            .rows
+            .iter()
+            .position(|r| matches!(r, ListRow::StackHeader(_)))
+            .unwrap();
+        app.table_state.select(Some(header_idx));
+        assert!(app.selected_pr().is_none());
+        assert!(app.selected_url().is_some());
     }
 }

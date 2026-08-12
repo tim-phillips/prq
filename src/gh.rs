@@ -3,7 +3,7 @@ use std::process::Command;
 
 use crate::model::{PrDetail, PrSummary, parse_pr_detail, parse_pr_list};
 
-const LIST_FIELDS: &str = "number,title,author,headRefName,isDraft,mergeable,updatedAt,url,reviewDecision,statusCheckRollup,reviewRequests,latestReviews";
+const LIST_FIELDS: &str = "number,title,author,headRefName,baseRefName,isDraft,mergeable,updatedAt,url,reviewDecision,statusCheckRollup,reviewRequests,latestReviews";
 
 const VIEW_FIELDS: &str = "number,title,body,author,headRefName,baseRefName,isDraft,mergeable,updatedAt,url,reviewDecision,statusCheckRollup,reviewRequests,latestReviews,additions,deletions,changedFiles";
 
@@ -20,7 +20,14 @@ pub fn check_gh_available() -> Result<()> {
 
 pub fn check_repo_context() -> Result<String> {
     let out = Command::new("gh")
-        .args(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"])
+        .args([
+            "repo",
+            "view",
+            "--json",
+            "nameWithOwner",
+            "-q",
+            ".nameWithOwner",
+        ])
         .output()
         .context("failed to run `gh repo view`")?;
     if !out.status.success() {

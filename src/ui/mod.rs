@@ -35,7 +35,7 @@ pub fn draw(frame: &mut Frame<'_>, app: &mut App) {
 }
 
 fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let count = app.prs.len();
+    let count = app.pr_count();
     let refreshed = match app.last_refresh {
         Some(t) => format!("refreshed {} ago", format_elapsed(t.elapsed())),
         None if app.loading_list => "loading…".to_string(),
@@ -55,10 +55,15 @@ fn draw_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
         ));
     } else {
         let keys = match app.mode {
-            ViewMode::List => "j/k move · g/G top/bottom · Enter detail · o open · r refresh · ? help · q quit",
+            ViewMode::List => {
+                "j/k move · g/G top/bottom · Enter detail/stack · o open · r refresh · ? help · q quit"
+            }
             ViewMode::Detail(_) => "Esc back · o open · r refresh · ? help · q quit",
         };
-        spans.push(Span::styled(keys, Style::default().add_modifier(Modifier::DIM)));
+        spans.push(Span::styled(
+            keys,
+            Style::default().add_modifier(Modifier::DIM),
+        ));
     }
     let para = Paragraph::new(Line::from(spans));
     frame.render_widget(para, area);
@@ -77,7 +82,7 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
         Line::from("k / ↑        select previous PR"),
         Line::from("g            jump to top"),
         Line::from("G            jump to bottom"),
-        Line::from("Enter        open PR detail view"),
+        Line::from("Enter        open PR detail (or expand/collapse a stack)"),
         Line::from("Esc          back to list"),
         Line::from("o            open PR in browser"),
         Line::from("r            refresh now"),
@@ -120,13 +125,18 @@ fn centered_rect(pct_x: u16, pct_y: u16, area: Rect) -> Rect {
 
 pub fn my_review_cell(state: MyReviewState) -> Span<'static> {
     match state {
-        MyReviewState::ReviewRequested => {
-            Span::styled("!", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        }
+        MyReviewState::ReviewRequested => Span::styled(
+            "!",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
         MyReviewState::WaitingOnAuthor => Span::styled("…", Style::default().fg(Color::Magenta)),
         MyReviewState::Approved => Span::styled(
             "✓",
-            Style::default().fg(Color::Green).add_modifier(Modifier::DIM),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::DIM),
         ),
         MyReviewState::Commented => Span::styled(
             "·",

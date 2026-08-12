@@ -1,0 +1,107 @@
+[
+  {
+    "number": 201,
+    "title": "Add auth token model",
+    "author": { "login": "alice" },
+    "headRefName": "alice/auth-model",
+    "baseRefName": "main",
+    "isDraft": false,
+    "mergeable": "MERGEABLE",
+    "updatedAt": "2026-04-22T10:00:00Z",
+    "url": "https://github.com/example/repo/pull/201",
+    "reviewDecision": "APPROVED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "name": "ci / build",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      }
+    ],
+    "reviewRequests": [],
+    "latestReviews": [{ "author": { "login": "tim" }, "state": "APPROVED" }]
+  },
+  {
+    "number": 202,
+    "title": "Add auth API endpoints",
+    "author": { "login": "alice" },
+    "headRefName": "alice/auth-api",
+    "baseRefName": "alice/auth-model",
+    "isDraft": false,
+    "mergeable": "MERGEABLE",
+    "updatedAt": "2026-04-22T11:00:00Z",
+    "url": "https://github.com/example/repo/pull/202",
+    "reviewDecision": "REVIEW_REQUIRED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "name": "ci / build",
+        "status": "IN_PROGRESS",
+        "conclusion": null
+      }
+    ],
+    "reviewRequests": [{ "login": "tim" }],
+    "latestReviews": []
+  },
+  {
+    "number": 203,
+    "title": "Wire auth into frontend",
+    "author": { "login": "alice" },
+    "headRefName": "alice/auth-frontend",
+    "baseRefName": "alice/auth-api",
+    "isDraft": true,
+    "mergeable": "UNKNOWN",
+    "updatedAt": "2026-04-22T12:00:00Z",
+    "url": "https://github.com/example/repo/pull/203",
+    "reviewDecision": "",
+    "statusCheckRollup": [],
+    "reviewRequests": [],
+    "latestReviews": []
+  },
+  {
+    "number": 204,
+    "title": "Fix typo in docs",
+    "author": { "login": "bob" },
+    "headRefName": "bob/docs-typo",
+    "baseRefName": "main",
+    "isDraft": false,
+    "mergeable": "MERGEABLE",
+    "updatedAt": "2026-04-22T13:00:00Z",
+    "url": "https://github.com/example/repo/pull/204",
+    "reviewDecision": "REVIEW_REQUIRED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "name": "ci / build",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS"
+      }
+    ],
+    "reviewRequests": [],
+    "latestReviews": []
+  },
+  {
+    "number": 205,
+    "title": "Bump dependencies",
+    "author": { "login": "carol" },
+    "headRefName": "carol/deps",
+    "baseRefName": "develop",
+    "isDraft": false,
+    "mergeable": "MERGEABLE",
+    "updatedAt": "2026-04-22T09:00:00Z",
+    "url": "https://github.com/example/repo/pull/205",
+    "reviewDecision": "CHANGES_REQUESTED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "name": "ci / test",
+        "status": "COMPLETED",
+        "conclusion": "FAILURE"
+      }
+    ],
+    "reviewRequests": [],
+    "latestReviews": [
+      { "author": { "login": "tim" }, "state": "CHANGES_REQUESTED" }
+    ]
+  }
+]

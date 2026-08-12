@@ -22,7 +22,8 @@ pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
     }
 
     let Some(detail) = &app.detail else {
-        let para = Paragraph::new("No detail available.").block(Block::default().borders(Borders::ALL));
+        let para =
+            Paragraph::new("No detail available.").block(Block::default().borders(Borders::ALL));
         frame.render_widget(para, area);
         return;
     };
@@ -58,12 +59,19 @@ fn draw_meta(frame: &mut Frame<'_>, area: Rect, d: &PrDetail) {
             format!("#{} ", s.number),
             Style::default().add_modifier(Modifier::BOLD),
         ),
-        Span::styled(s.title.clone(), Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            s.title.clone(),
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
         draft,
     ]);
     let refs = Line::from(format!("{} → {}", s.head_ref, s.base_ref));
     let meta = Line::from(vec![
-        Span::raw(format!("by {} · updated {} · ", s.author, format_age(s.updated_at))),
+        Span::raw(format!(
+            "by {} · updated {} · ",
+            s.author,
+            format_age(s.updated_at)
+        )),
         mergeable,
         Span::raw(format!(
             " · +{} −{} in {} files",
@@ -85,7 +93,11 @@ fn draw_body(frame: &mut Frame<'_>, area: Rect, d: &PrDetail) {
         textwrap::fill(&d.body, inner_width)
     };
     let para = Paragraph::new(body)
-        .block(Block::default().borders(Borders::ALL).title(" description "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" description "),
+        )
         .wrap(Wrap { trim: false });
     frame.render_widget(para, area);
 }
@@ -113,8 +125,8 @@ fn draw_bottom(frame: &mut Frame<'_>, area: Rect, d: &PrDetail) {
             })
             .collect()
     };
-    let checks = List::new(check_items)
-        .block(Block::default().borders(Borders::ALL).title(" checks "));
+    let checks =
+        List::new(check_items).block(Block::default().borders(Borders::ALL).title(" checks "));
     frame.render_widget(checks, cols[0]);
 
     let reviewer_items: Vec<ListItem> = if d.reviewers.is_empty() {
@@ -131,14 +143,14 @@ fn draw_bottom(frame: &mut Frame<'_>, area: Rect, d: &PrDetail) {
                     ReviewerState::ChangesRequested => {
                         Span::styled("✗", Style::default().fg(Color::Red))
                     }
-                    ReviewerState::Commented => {
-                        Span::styled("·", Style::default().fg(Color::Blue))
-                    }
-                    ReviewerState::Pending => {
-                        Span::styled("●", Style::default().fg(Color::Yellow))
-                    }
+                    ReviewerState::Commented => Span::styled("·", Style::default().fg(Color::Blue)),
+                    ReviewerState::Pending => Span::styled("●", Style::default().fg(Color::Yellow)),
                 };
-                ListItem::new(Line::from(vec![icon, Span::raw(" "), Span::raw(r.login.clone())]))
+                ListItem::new(Line::from(vec![
+                    icon,
+                    Span::raw(" "),
+                    Span::raw(r.login.clone()),
+                ]))
             })
             .collect()
     };

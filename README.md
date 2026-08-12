@@ -68,16 +68,24 @@ prq · owner/repo · 12 open PR(s) · refreshed 14s ago               ← header
 
 The list shows one row per open PR with these columns:
 
-| Col      | Meaning                                                          |
-| -------- | ---------------------------------------------------------------- |
-| `#`      | PR number. A trailing `*` and dim style means the PR is a draft. |
-| `Me`     | Whether **you** are involved in the PR (see icons below).        |
-| `R`      | Overall review decision on the PR.                               |
-| `C`      | Overall CI/check status rollup.                                  |
-| `Title`  | PR title.                                                        |
-| `Author` | PR author's GitHub login.                                        |
-| `Branch` | Head branch name.                                                |
-| `Age`    | Time since the PR was last updated.                              |
+| Col      | Meaning                                                                                                    |
+| -------- | ---------------------------------------------------------------------------------------------------------- |
+| `#`      | PR number. A trailing `*` and dim style means the PR is a draft. `▸`/`▾` marks a collapsed/expanded stack. |
+| `Me`     | Whether **you** are involved in the PR (see icons below).                                                  |
+| `R`      | Overall review decision on the PR.                                                                         |
+| `C`      | Overall CI/check status rollup.                                                                            |
+| `Title`  | PR title.                                                                                                  |
+| `Author` | PR author's GitHub login.                                                                                  |
+| `Branch` | Head branch name.                                                                                          |
+| `Age`    | Time since the PR was last updated.                                                                        |
+
+#### Stacked PRs
+
+Stacks of dependent PRs (as created by [gh-stack](https://github.com/github/gh-stack) or similar tools) are detected by base branch: a PR whose base branch is another open PR's head branch belongs to the same stack. Each stack collapses into a single `▸` row so a long stack doesn't flood the list.
+
+The collapsed row shows the bottom PR's title with `(stack of N)`, and its `Me`/`R`/`C` columns roll up the most urgent state across the whole stack (e.g. one failing check anywhere shows `✗`; a review request for you on any member shows `!`). The age is the most recent update in the stack.
+
+Press `Enter` on a stack row to expand it in place — members appear beneath it, ordered bottom (closest to trunk) to top, and behave like normal rows. `Enter` on the header again collapses it. `o` on a collapsed stack opens the bottom PR in the browser. Expansion state is preserved across refreshes.
 
 #### `Me` — does this PR need your attention?
 
@@ -133,13 +141,13 @@ Pressing `Enter` on a PR opens a detail view with:
 
 ### List view
 
-| Key          | Action                                |
-| ------------ | ------------------------------------- |
-| `j` / `↓`    | Select next PR.                       |
-| `k` / `↑`    | Select previous PR.                   |
-| `g` / `Home` | Jump to first PR.                     |
-| `G` / `End`  | Jump to last PR.                      |
-| `Enter`      | Open detail view for the selected PR. |
+| Key          | Action                                                            |
+| ------------ | ----------------------------------------------------------------- |
+| `j` / `↓`    | Select next PR.                                                   |
+| `k` / `↑`    | Select previous PR.                                               |
+| `g` / `Home` | Jump to first PR.                                                 |
+| `G` / `End`  | Jump to last PR.                                                  |
+| `Enter`      | Open detail view for the selected PR, or expand/collapse a stack. |
 
 ### Detail view
 

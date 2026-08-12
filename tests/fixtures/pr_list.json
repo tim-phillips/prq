@@ -2,7 +2,10 @@
   {
     "number": 101,
     "title": "Add fractional shards to donut",
-    "author": { "login": "alice", "is_bot": false },
+    "author": {
+      "login": "alice",
+      "is_bot": false
+    },
     "headRefName": "alice/donut-shards",
     "isDraft": false,
     "mergeable": "MERGEABLE",
@@ -29,21 +32,28 @@
     "reviewRequests": [],
     "latestReviews": [
       {
-        "author": { "login": "bob" },
+        "author": {
+          "login": "bob"
+        },
         "state": "APPROVED",
         "submittedAt": "2026-04-22T09:00:00Z"
       },
       {
-        "author": { "login": "tim" },
+        "author": {
+          "login": "tim"
+        },
         "state": "APPROVED",
         "submittedAt": "2026-04-22T09:10:00Z"
       }
-    ]
+    ],
+    "baseRefName": "main"
   },
   {
     "number": 102,
     "title": "Refactor oven temperature controller",
-    "author": { "login": "carol" },
+    "author": {
+      "login": "carol"
+    },
     "headRefName": "carol/oven-refactor",
     "isDraft": false,
     "mergeable": "CONFLICTING",
@@ -66,24 +76,35 @@
         "detailsUrl": "https://example.com/test"
       }
     ],
-    "reviewRequests": [{ "login": "dave" }],
+    "reviewRequests": [
+      {
+        "login": "dave"
+      }
+    ],
     "latestReviews": [
       {
-        "author": { "login": "erin" },
+        "author": {
+          "login": "erin"
+        },
         "state": "CHANGES_REQUESTED",
         "submittedAt": "2026-04-21T14:00:00Z"
       },
       {
-        "author": { "login": "tim" },
+        "author": {
+          "login": "tim"
+        },
         "state": "CHANGES_REQUESTED",
         "submittedAt": "2026-04-21T14:30:00Z"
       }
-    ]
+    ],
+    "baseRefName": "main"
   },
   {
     "number": 103,
     "title": "Wire up glaze pipeline",
-    "author": { "login": "frank" },
+    "author": {
+      "login": "frank"
+    },
     "headRefName": "frank/glaze",
     "isDraft": false,
     "mergeable": "UNKNOWN",
@@ -105,16 +126,25 @@
       }
     ],
     "reviewRequests": [
-      { "login": "gina" },
-      { "login": "heidi" },
-      { "login": "tim" }
+      {
+        "login": "gina"
+      },
+      {
+        "login": "heidi"
+      },
+      {
+        "login": "tim"
+      }
     ],
-    "latestReviews": []
+    "latestReviews": [],
+    "baseRefName": "main"
   },
   {
     "number": 104,
     "title": "WIP: sprinkle quantum entangler",
-    "author": { "login": "ivan" },
+    "author": {
+      "login": "ivan"
+    },
     "headRefName": "ivan/sprinkles",
     "isDraft": true,
     "mergeable": "UNKNOWN",
@@ -124,6 +154,7 @@
     "reviewDecision": "",
     "statusCheckRollup": [],
     "reviewRequests": [],
-    "latestReviews": []
+    "latestReviews": [],
+    "baseRefName": "main"
   }
 ]
