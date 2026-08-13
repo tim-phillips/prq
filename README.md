@@ -60,7 +60,7 @@ prq · owner/repo · 12 open PR(s) · refreshed 14s ago               ← header
  j/k move · g/G top/bottom · Enter detail · o open · r refresh  ← footer
 ```
 
-- **Header** — repo, PR count, and how long ago the data was refreshed.
+- **Header** — repo, PR count, attention counts (how many PRs are waiting on your review `!`, have changes requested on your PRs `✗`, have merge conflicts `↯`, or are ready to merge `»` — zero counts are hidden), and how long ago the data was refreshed.
 - **Body** — the list of open PRs, or the detail view for a selected PR.
 - **Footer** — context-sensitive keybindings, or the most recent error.
 

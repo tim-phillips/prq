@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use ratatui::widgets::TableState;
 
-use crate::model::{PrDetail, PrStack, PrSummary, group_stacks};
+use crate::model::{Attention, PrDetail, PrStack, PrSummary, group_stacks};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -17,6 +17,14 @@ pub enum ViewMode {
 pub enum ListRow {
     StackHeader(usize),
     Pr { group: usize, member: usize },
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AttentionCounts {
+    pub to_review: usize,
+    pub changes_requested: usize,
+    pub conflicts: usize,
+    pub ready: usize,
 }
 
 pub struct App {
@@ -64,6 +72,22 @@ impl App {
 
     pub fn pr_count(&self) -> usize {
         self.groups.iter().map(|g| g.prs.len()).sum()
+    }
+
+    /// How many PRs need something from the viewer, by kind. Shown in the
+    /// header so the queue is readable without scanning the Me column.
+    pub fn attention_counts(&self) -> AttentionCounts {
+        let mut counts = AttentionCounts::default();
+        for pr in self.groups.iter().flat_map(|g| &g.prs) {
+            match pr.attention {
+                Attention::ReviewRequested => counts.to_review += 1,
+                Attention::MyPrChangesRequested => counts.changes_requested += 1,
+                Attention::MyPrConflicts => counts.conflicts += 1,
+                Attention::MyPrReadyToMerge => counts.ready += 1,
+                _ => {}
+            }
+        }
+        counts
     }
 
     pub fn is_expanded(&self, group: usize) -> bool {
@@ -338,6 +362,28 @@ mod tests {
 
         assert_eq!(app.rows.len(), 6); // still expanded
         assert_eq!(app.selected_pr().unwrap().number, selected);
+    }
+
+    #[test]
+    fn attention_counts_tally_by_kind() {
+        let json = r#"[
+            {"number": 1, "title": "review me", "author": {"login": "alice"}, "headRefName": "a", "baseRefName": "main",
+             "reviewRequests": [{"login": "tim"}]},
+            {"number": 2, "title": "reworked", "author": {"login": "tim"}, "headRefName": "b", "baseRefName": "main",
+             "mergeable": "MERGEABLE", "reviewDecision": "CHANGES_REQUESTED"},
+            {"number": 3, "title": "conflicted", "author": {"login": "tim"}, "headRefName": "c", "baseRefName": "main",
+             "mergeable": "CONFLICTING"},
+            {"number": 4, "title": "ready", "author": {"login": "tim"}, "headRefName": "d", "baseRefName": "main",
+             "mergeable": "MERGEABLE", "reviewDecision": "APPROVED"},
+            {"number": 5, "title": "not mine", "author": {"login": "bob"}, "headRefName": "e", "baseRefName": "main"}
+        ]"#;
+        let mut app = App::new("example/repo".into(), 60, true, 100);
+        app.apply_prs(parse_pr_list(json, Some("tim")).unwrap());
+        let counts = app.attention_counts();
+        assert_eq!(counts.to_review, 1);
+        assert_eq!(counts.changes_requested, 1);
+        assert_eq!(counts.conflicts, 1);
+        assert_eq!(counts.ready, 1);
     }
 
     #[test]

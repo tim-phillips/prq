@@ -41,8 +41,25 @@ fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
         None if app.loading_list => "loading…".to_string(),
         None => "—".to_string(),
     };
-    let title = format!("prq · {} · {count} open PR(s) · {refreshed}", app.repo);
-    let para = Paragraph::new(title).style(Style::default().add_modifier(Modifier::BOLD));
+    let bold = Style::default().add_modifier(Modifier::BOLD);
+    let mut spans = vec![Span::styled(
+        format!("prq · {} · {count} open PR(s)", app.repo),
+        bold,
+    )];
+    let counts = app.attention_counts();
+    for (n, icon, color) in [
+        (counts.to_review, "!", Color::Yellow),
+        (counts.changes_requested, "✗", Color::Red),
+        (counts.conflicts, "↯", Color::Magenta),
+        (counts.ready, "»", Color::Green),
+    ] {
+        if n > 0 {
+            spans.push(Span::styled(" · ", bold));
+            spans.push(Span::styled(format!("{icon}{n}"), bold.fg(color)));
+        }
+    }
+    spans.push(Span::styled(format!(" · {refreshed}"), bold));
+    let para = Paragraph::new(Line::from(spans));
     frame.render_widget(para, area);
 }
 
