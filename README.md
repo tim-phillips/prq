@@ -71,7 +71,7 @@ The list shows one row per open PR with these columns:
 | Col      | Meaning                                                                                                    |
 | -------- | ---------------------------------------------------------------------------------------------------------- |
 | `#`      | PR number. A trailing `*` and dim style means the PR is a draft. `▸`/`▾` marks a collapsed/expanded stack. |
-| `Me`     | Whether **you** are involved in the PR (see icons below).                                                  |
+| `Me`     | What the PR needs from **you** — as reviewer or author (see icons below).                                  |
 | `R`      | Overall review decision on the PR.                                                                         |
 | `C`      | Overall CI/check status rollup.                                                                            |
 | `Title`  | PR title.                                                                                                  |
@@ -89,13 +89,17 @@ Press `Enter` on a stack row to expand it in place — members appear beneath it
 
 #### `Me` — does this PR need your attention?
 
-| Icon        | State                                                |
-| ----------- | ---------------------------------------------------- |
-| `!`         | Review requested from you — you're blocking someone. |
-| `…`         | You requested changes; now waiting on the author.    |
-| `✓`         | You already approved.                                |
-| `·`         | You left a comment (no formal verdict).              |
-| ` ` (blank) | You're not involved.                                 |
+| Icon        | State                                                                    |
+| ----------- | ------------------------------------------------------------------------ |
+| `!`         | Review requested from you — you're blocking someone.                     |
+| `✗`         | A reviewer requested changes on your PR — it needs rework.               |
+| `↯`         | Your PR has merge conflicts.                                             |
+| `»`         | Your PR is ready to merge: approved, checks green, merges cleanly.       |
+| `○`         | Your PR, nothing to do yet — waiting on reviewers or checks, or a draft. |
+| `…`         | You requested changes; now waiting on the author.                        |
+| `✓`         | You already approved.                                                    |
+| `·`         | You left a comment (no formal verdict).                                  |
+| ` ` (blank) | You're not involved.                                                     |
 
 #### `R` — review status
 

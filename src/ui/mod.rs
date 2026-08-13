@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
 use crate::app::{App, ViewMode};
-use crate::model::{CheckRollup, CheckState, MyReviewState, ReviewState};
+use crate::model::{Attention, CheckRollup, CheckState, ReviewState};
 
 pub mod detail;
 pub mod list;
@@ -95,6 +95,10 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
             Style::default().add_modifier(Modifier::BOLD),
         )),
         Line::from("!            review requested from you"),
+        Line::from("✗            changes requested on your PR"),
+        Line::from("↯            your PR has merge conflicts"),
+        Line::from("»            your PR is ready to merge"),
+        Line::from("○            your PR, waiting on reviewers/checks"),
         Line::from("…            you requested changes, waiting on author"),
         Line::from("✓            you approved"),
         Line::from("·            you commented"),
@@ -124,26 +128,46 @@ fn centered_rect(pct_x: u16, pct_y: u16, area: Rect) -> Rect {
         .split(vert[1])[1]
 }
 
-pub fn my_review_cell(state: MyReviewState) -> Span<'static> {
+pub fn attention_cell(state: Attention) -> Span<'static> {
     match state {
-        MyReviewState::ReviewRequested => Span::styled(
+        Attention::ReviewRequested => Span::styled(
             "!",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         ),
-        MyReviewState::WaitingOnAuthor => Span::styled("…", Style::default().fg(Color::Magenta)),
-        MyReviewState::Approved => Span::styled(
+        Attention::MyPrChangesRequested => Span::styled(
+            "✗",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ),
+        Attention::MyPrConflicts => Span::styled(
+            "↯",
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Attention::MyPrReadyToMerge => Span::styled(
+            "»",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Attention::MyPrWaiting => Span::styled(
+            "○",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM),
+        ),
+        Attention::WaitingOnAuthor => Span::styled("…", Style::default().fg(Color::Magenta)),
+        Attention::Approved => Span::styled(
             "✓",
             Style::default()
                 .fg(Color::Green)
                 .add_modifier(Modifier::DIM),
         ),
-        MyReviewState::Commented => Span::styled(
+        Attention::Commented => Span::styled(
             "·",
             Style::default().fg(Color::Blue).add_modifier(Modifier::DIM),
         ),
-        MyReviewState::NotInvolved => Span::raw(" "),
+        Attention::NotInvolved => Span::raw(" "),
     }
 }
 

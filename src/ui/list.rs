@@ -6,7 +6,7 @@ use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 
 use crate::app::{App, ListRow};
 use crate::model::{PrStack, PrSummary};
-use crate::ui::{checks_cell, format_age, my_review_cell, review_cell};
+use crate::ui::{attention_cell, checks_cell, format_age, review_cell};
 
 pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
     if app.loading_list && app.rows.is_empty() {
@@ -83,7 +83,7 @@ fn stack_header_row(stack: &PrStack, expanded: bool) -> Row<'static> {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Cell::from(Line::from(my_review_cell(stack.my_review_rollup()))),
+        Cell::from(Line::from(attention_cell(stack.attention_rollup()))),
         Cell::from(Line::from(review_cell(stack.review_rollup()))),
         Cell::from(Line::from(checks_cell(&stack.checks_rollup()))),
         Cell::from(title),
@@ -115,7 +115,7 @@ fn pr_row(pr: &PrSummary, in_stack: bool, is_last_member: bool) -> Row<'static> 
     };
     Row::new(vec![
         Cell::from(Span::styled(num, dim)),
-        Cell::from(Line::from(my_review_cell(pr.my_review))),
+        Cell::from(Line::from(attention_cell(pr.attention))),
         Cell::from(Line::from(review_cell(pr.review))),
         Cell::from(Line::from(checks_cell(&pr.checks))),
         Cell::from(title),

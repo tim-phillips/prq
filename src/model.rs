@@ -162,40 +162,92 @@ pub enum ReviewerState {
     Pending,
 }
 
+/// What, if anything, this PR needs from the viewer — as a reviewer (someone
+/// is waiting on your review) or as the author (your PR needs rework, has
+/// merge conflicts, or is ready to merge).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MyReviewState {
+pub enum Attention {
     NotInvolved,
+    /// Review requested from you — you're blocking someone.
     ReviewRequested,
+    /// A reviewer requested changes on your PR.
+    MyPrChangesRequested,
+    /// Your PR has merge conflicts.
+    MyPrConflicts,
+    /// Your PR is approved, checks are green, and it merges cleanly.
+    MyPrReadyToMerge,
+    /// Your PR, nothing to do — waiting on reviewers or checks, or a draft.
+    MyPrWaiting,
+    /// You requested changes; now waiting on the author.
     WaitingOnAuthor,
     Approved,
     Commented,
 }
 
-impl MyReviewState {
+impl Attention {
     fn urgency(self) -> u8 {
         match self {
-            MyReviewState::ReviewRequested => 4,
-            MyReviewState::WaitingOnAuthor => 3,
-            MyReviewState::Commented => 2,
-            MyReviewState::Approved => 1,
-            MyReviewState::NotInvolved => 0,
+            Attention::ReviewRequested => 8,
+            Attention::MyPrChangesRequested => 7,
+            Attention::MyPrConflicts => 6,
+            Attention::MyPrReadyToMerge => 5,
+            Attention::WaitingOnAuthor => 4,
+            Attention::MyPrWaiting => 3,
+            Attention::Commented => 2,
+            Attention::Approved => 1,
+            Attention::NotInvolved => 0,
         }
     }
 
-    fn resolve(r: &RawPr, viewer: Option<&str>) -> Self {
+    fn resolve(
+        r: &RawPr,
+        viewer: Option<&str>,
+        review: ReviewState,
+        mergeable: Mergeable,
+        checks: &CheckRollup,
+    ) -> Self {
         let Some(viewer) = viewer else {
-            return MyReviewState::NotInvolved;
+            return Attention::NotInvolved;
         };
+        if r.author.login == viewer {
+            return Attention::resolve_author(r.is_draft, review, mergeable, checks);
+        }
         if r.review_requests.iter().any(|req| req.login == viewer) {
-            return MyReviewState::ReviewRequested;
+            return Attention::ReviewRequested;
         }
         let mine = r.latest_reviews.iter().find(|rv| rv.author.login == viewer);
         match mine.map(|rv| rv.state.as_str()) {
-            Some("APPROVED") => MyReviewState::Approved,
-            Some("CHANGES_REQUESTED") => MyReviewState::WaitingOnAuthor,
-            Some("COMMENTED") => MyReviewState::Commented,
-            _ => MyReviewState::NotInvolved,
+            Some("APPROVED") => Attention::Approved,
+            Some("CHANGES_REQUESTED") => Attention::WaitingOnAuthor,
+            Some("COMMENTED") => Attention::Commented,
+            _ => Attention::NotInvolved,
         }
+    }
+
+    fn resolve_author(
+        is_draft: bool,
+        review: ReviewState,
+        mergeable: Mergeable,
+        checks: &CheckRollup,
+    ) -> Self {
+        if review == ReviewState::ChangesRequested {
+            return Attention::MyPrChangesRequested;
+        }
+        if mergeable == Mergeable::Conflicting {
+            return Attention::MyPrConflicts;
+        }
+        let checks_green = !matches!(
+            checks.overall,
+            Some(CheckState::Fail) | Some(CheckState::Pending)
+        );
+        if !is_draft
+            && review == ReviewState::Approved
+            && mergeable == Mergeable::Mergeable
+            && checks_green
+        {
+            return Attention::MyPrReadyToMerge;
+        }
+        Attention::MyPrWaiting
     }
 }
 
@@ -275,12 +327,16 @@ pub struct PrSummary {
     pub updated_at: Option<DateTime<Utc>>,
     pub url: String,
     pub review: ReviewState,
-    pub my_review: MyReviewState,
+    pub attention: Attention,
     pub checks: CheckRollup,
 }
 
 impl PrSummary {
     pub fn from_raw(r: &RawPr, viewer: Option<&str>) -> Self {
+        let review = ReviewState::from_decision(&r.review_decision);
+        let mergeable = Mergeable::from_str(&r.mergeable);
+        let checks = CheckRollup::from_raw(&r.status_check_rollup);
+        let attention = Attention::resolve(r, viewer, review, mergeable, &checks);
         PrSummary {
             number: r.number,
             title: r.title.clone(),
@@ -288,12 +344,12 @@ impl PrSummary {
             head_ref: r.head_ref.clone(),
             base_ref: r.base_ref.clone(),
             is_draft: r.is_draft,
-            mergeable: Mergeable::from_str(&r.mergeable),
+            mergeable,
             updated_at: r.updated_at,
             url: r.url.clone(),
-            review: ReviewState::from_decision(&r.review_decision),
-            my_review: MyReviewState::resolve(r, viewer),
-            checks: CheckRollup::from_raw(&r.status_check_rollup),
+            review,
+            attention,
+            checks,
         }
     }
 }
@@ -389,12 +445,12 @@ impl PrStack {
             .unwrap_or(ReviewState::None)
     }
 
-    pub fn my_review_rollup(&self) -> MyReviewState {
+    pub fn attention_rollup(&self) -> Attention {
         self.prs
             .iter()
-            .map(|p| p.my_review)
+            .map(|p| p.attention)
             .max_by_key(|r| r.urgency())
-            .unwrap_or(MyReviewState::NotInvolved)
+            .unwrap_or(Attention::NotInvolved)
     }
 
     pub fn checks_rollup(&self) -> CheckRollup {
@@ -529,42 +585,85 @@ mod tests {
         assert_eq!(approved.author, "alice");
         assert!(!approved.is_draft);
         assert_eq!(approved.mergeable, Mergeable::Mergeable);
-        assert_eq!(approved.my_review, MyReviewState::Approved);
+        assert_eq!(approved.attention, Attention::Approved);
 
         let changes = prs.iter().find(|p| p.number == 102).unwrap();
         assert_eq!(changes.review, ReviewState::ChangesRequested);
         assert_eq!(changes.checks.overall, Some(CheckState::Fail));
         assert_eq!(changes.checks.failing, 1);
         assert_eq!(changes.checks.passing, 1);
-        assert_eq!(changes.my_review, MyReviewState::WaitingOnAuthor);
+        assert_eq!(changes.attention, Attention::WaitingOnAuthor);
 
         let pending = prs.iter().find(|p| p.number == 103).unwrap();
         assert_eq!(pending.review, ReviewState::ReviewRequired);
         assert_eq!(pending.checks.overall, Some(CheckState::Pending));
         assert!(pending.checks.pending >= 1);
-        assert_eq!(pending.my_review, MyReviewState::ReviewRequested);
+        assert_eq!(pending.attention, Attention::ReviewRequested);
 
         let draft = prs.iter().find(|p| p.number == 104).unwrap();
         assert!(draft.is_draft);
         assert_eq!(draft.review, ReviewState::None);
         assert_eq!(draft.checks.overall, None);
-        assert_eq!(draft.my_review, MyReviewState::NotInvolved);
+        assert_eq!(draft.attention, Attention::NotInvolved);
     }
 
     #[test]
-    fn my_review_waiting_on_author_is_distinct_from_review_requested() {
+    fn waiting_on_author_is_distinct_from_review_requested() {
         let prs = parse_pr_list(LIST_FIXTURE, Some("tim")).unwrap();
         let waiting = prs.iter().find(|p| p.number == 102).unwrap();
         let requested = prs.iter().find(|p| p.number == 103).unwrap();
-        assert_eq!(waiting.my_review, MyReviewState::WaitingOnAuthor);
-        assert_eq!(requested.my_review, MyReviewState::ReviewRequested);
+        assert_eq!(waiting.attention, Attention::WaitingOnAuthor);
+        assert_eq!(requested.attention, Attention::ReviewRequested);
+    }
+
+    #[test]
+    fn author_attention_states() {
+        let json = r#"[
+            {"number": 1, "title": "reworked", "author": {"login": "tim"}, "headRefName": "t/a", "baseRefName": "main",
+             "mergeable": "CONFLICTING", "reviewDecision": "CHANGES_REQUESTED",
+             "latestReviews": [{"author": {"login": "erin"}, "state": "CHANGES_REQUESTED"}]},
+            {"number": 2, "title": "conflicted", "author": {"login": "tim"}, "headRefName": "t/b", "baseRefName": "main",
+             "mergeable": "CONFLICTING", "reviewDecision": "APPROVED"},
+            {"number": 3, "title": "ready", "author": {"login": "tim"}, "headRefName": "t/c", "baseRefName": "main",
+             "mergeable": "MERGEABLE", "reviewDecision": "APPROVED",
+             "statusCheckRollup": [{"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclusion": "SUCCESS"}]},
+            {"number": 4, "title": "awaiting review", "author": {"login": "tim"}, "headRefName": "t/d", "baseRefName": "main",
+             "mergeable": "MERGEABLE", "reviewDecision": "REVIEW_REQUIRED"},
+            {"number": 5, "title": "approved, checks running", "author": {"login": "tim"}, "headRefName": "t/e", "baseRefName": "main",
+             "mergeable": "MERGEABLE", "reviewDecision": "APPROVED",
+             "statusCheckRollup": [{"__typename": "CheckRun", "name": "ci", "status": "IN_PROGRESS"}]},
+            {"number": 6, "title": "approved draft", "author": {"login": "tim"}, "headRefName": "t/f", "baseRefName": "main",
+             "isDraft": true, "mergeable": "MERGEABLE", "reviewDecision": "APPROVED"}
+        ]"#;
+        let prs = parse_pr_list(json, Some("tim")).unwrap();
+        let attention = |n: u32| prs.iter().find(|p| p.number == n).unwrap().attention;
+
+        // Changes requested wins over the conflict on the same PR.
+        assert_eq!(attention(1), Attention::MyPrChangesRequested);
+        assert_eq!(attention(2), Attention::MyPrConflicts);
+        assert_eq!(attention(3), Attention::MyPrReadyToMerge);
+        // Waiting on reviewers / checks / draft: nothing to do, but still
+        // marked as yours so authored PRs never show a blank Me cell.
+        assert_eq!(attention(4), Attention::MyPrWaiting);
+        assert_eq!(attention(5), Attention::MyPrWaiting);
+        assert_eq!(attention(6), Attention::MyPrWaiting);
+    }
+
+    #[test]
+    fn own_pr_with_no_checks_counts_as_ready() {
+        let json = r#"[
+            {"number": 7, "title": "no ci", "author": {"login": "tim"}, "headRefName": "t/g", "baseRefName": "main",
+             "mergeable": "MERGEABLE", "reviewDecision": "APPROVED"}
+        ]"#;
+        let prs = parse_pr_list(json, Some("tim")).unwrap();
+        assert_eq!(prs[0].attention, Attention::MyPrReadyToMerge);
     }
 
     #[test]
     fn no_viewer_means_all_not_involved() {
         let prs = parse_pr_list(LIST_FIXTURE, None).unwrap();
         for pr in &prs {
-            assert_eq!(pr.my_review, MyReviewState::NotInvolved);
+            assert_eq!(pr.attention, Attention::NotInvolved);
         }
     }
 
@@ -586,7 +685,7 @@ mod tests {
             .iter()
             .find(|r| r.state == ReviewerState::Pending);
         assert!(pending_reviewer.is_some());
-        assert_eq!(detail.summary.my_review, MyReviewState::Approved);
+        assert_eq!(detail.summary.attention, Attention::Approved);
     }
 
     #[test]
@@ -618,7 +717,7 @@ mod tests {
         // 201 approved, 202 review required, 203 no decision.
         assert_eq!(stack.review_rollup(), ReviewState::ReviewRequired);
         // Review requested from tim on 202 beats tim's approval on 201.
-        assert_eq!(stack.my_review_rollup(), MyReviewState::ReviewRequested);
+        assert_eq!(stack.attention_rollup(), Attention::ReviewRequested);
         // 201 passing + 202 pending → pending overall.
         assert_eq!(stack.checks_rollup().overall, Some(CheckState::Pending));
         assert!(!stack.all_drafts());
