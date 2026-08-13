@@ -131,13 +131,14 @@ Pressing `Enter` on a PR opens a detail view with:
 
 ### Global
 
-| Key      | Action                                                             |
-| -------- | ------------------------------------------------------------------ |
-| `?`      | Toggle help overlay.                                               |
-| `o`      | Open the selected PR (list) or current PR (detail) in the browser. |
-| `r`      | Refresh now — refetches the list or the open detail.               |
-| `q`      | Back to list (in detail), or quit (in list).                       |
-| `Ctrl-C` | Quit from anywhere.                                                |
+| Key      | Action                                                                                                            |
+| -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `?`      | Toggle help overlay.                                                                                              |
+| `o`      | Open the selected PR (list) or current PR (detail) in the browser.                                                |
+| `w`      | Check out the PR branch in [workmux](https://github.com/raine/workmux) (`workmux add --pr <n> --open-if-exists`). |
+| `r`      | Refresh now — refetches the list or the open detail.                                                              |
+| `q`      | Back to list (in detail), or quit (in list).                                                                      |
+| `Ctrl-C` | Quit from anywhere.                                                                                               |
 
 ### List view
 

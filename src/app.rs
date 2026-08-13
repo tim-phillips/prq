@@ -168,7 +168,7 @@ impl App {
     }
 
     pub fn apply_prs(&mut self, prs: Vec<PrSummary>) {
-        let keep = self.selected_anchor();
+        let keep = self.selected_number();
         self.groups = group_stacks(prs);
         let live: HashSet<u32> = self
             .groups
@@ -189,9 +189,10 @@ impl App {
         self.last_error = None;
     }
 
-    /// PR number identifying the current selection, used to re-anchor it
-    /// after a refresh (a header is identified by its bottom PR).
-    fn selected_anchor(&self) -> Option<u32> {
+    /// PR number identifying the current selection (a stack header is
+    /// identified by its bottom PR). Used to re-anchor the selection after
+    /// a refresh and as the target for actions like opening in workmux.
+    pub fn selected_number(&self) -> Option<u32> {
         match self.selected_row()? {
             ListRow::Pr { group, member } => Some(self.groups[group].prs[member].number),
             ListRow::StackHeader(g) => Some(self.groups[g].bottom().number),

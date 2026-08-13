@@ -5,6 +5,7 @@ mod gh;
 mod model;
 mod refresh;
 mod ui;
+mod workmux;
 
 use std::io::{self, Stdout};
 use std::time::Duration;
@@ -107,6 +108,7 @@ fn handle_key(app: &mut App, worker: &Worker, key: KeyEvent) {
             }
         },
         (_, KeyCode::Char('o')) => open_selected(app),
+        (_, KeyCode::Char('w')) => open_in_workmux(app, worker),
         (_, KeyCode::Esc) => {
             if matches!(app.mode, ViewMode::Detail(_)) {
                 app.back_to_list();
@@ -151,6 +153,16 @@ fn open_selected(app: &mut App) {
     }
 }
 
+fn open_in_workmux(app: &App, worker: &Worker) {
+    let number = match app.mode {
+        ViewMode::List => app.selected_number(),
+        ViewMode::Detail(n) => Some(n),
+    };
+    if let Some(n) = number {
+        worker.request_workmux(n);
+    }
+}
+
 fn drain_worker(app: &mut App, worker: &Worker) {
     while let Ok(msg) = worker.rx.try_recv() {
         match msg {
@@ -164,6 +176,11 @@ fn drain_worker(app: &mut App, worker: &Worker) {
                 }
                 Err(e) => app.apply_detail_error(e),
             },
+            Response::Workmux(result) => {
+                if let Err(e) = result {
+                    app.last_error = Some(e);
+                }
+            }
         }
     }
 }

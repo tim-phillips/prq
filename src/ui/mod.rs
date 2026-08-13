@@ -56,9 +56,9 @@ fn draw_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     } else {
         let keys = match app.mode {
             ViewMode::List => {
-                "j/k move · g/G top/bottom · Enter detail/stack · o open · r refresh · ? help · q quit"
+                "j/k move · g/G top/bottom · Enter detail/stack · o open · w workmux · r refresh · ? help · q quit"
             }
-            ViewMode::Detail(_) => "Esc back · o open · r refresh · ? help · q quit",
+            ViewMode::Detail(_) => "Esc back · o open · w workmux · r refresh · ? help · q quit",
         };
         spans.push(Span::styled(
             keys,
@@ -85,6 +85,7 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
         Line::from("Enter        open PR detail (or expand/collapse a stack)"),
         Line::from("Esc          back to list"),
         Line::from("o            open PR in browser"),
+        Line::from("w            open PR branch in workmux"),
         Line::from("r            refresh now"),
         Line::from("?            toggle this help"),
         Line::from("q / Ctrl-C   quit"),

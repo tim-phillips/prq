@@ -1,12 +1,13 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use crate::gh;
 use crate::model::{PrDetail, PrSummary};
+use crate::{gh, workmux};
 
 pub enum Request {
     FetchList { limit: u32 },
     FetchDetail { number: u32 },
+    OpenWorkmux { number: u32 },
     Shutdown,
 }
 
@@ -16,6 +17,7 @@ pub enum Response {
         number: u32,
         result: Result<PrDetail, String>,
     },
+    Workmux(Result<(), String>),
 }
 
 pub struct Worker {
@@ -44,6 +46,10 @@ impl Worker {
                             gh::view_pr(number, viewer.as_deref()).map_err(|e| format!("{e:#}"));
                         let _ = res_tx.send(Response::Detail { number, result });
                     }
+                    Request::OpenWorkmux { number } => {
+                        let result = workmux::open_pr(number).map_err(|e| format!("{e:#}"));
+                        let _ = res_tx.send(Response::Workmux(result));
+                    }
                 }
             }
         });
@@ -60,6 +66,10 @@ impl Worker {
 
     pub fn request_detail(&self, number: u32) {
         let _ = self.tx.send(Request::FetchDetail { number });
+    }
+
+    pub fn request_workmux(&self, number: u32) {
+        let _ = self.tx.send(Request::OpenWorkmux { number });
     }
 
     pub fn shutdown(&self) {
