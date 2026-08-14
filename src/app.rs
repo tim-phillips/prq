@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::time::Instant;
 
+use ratatui::layout::Rect;
 use ratatui::widgets::TableState;
 
 use crate::model::{Attention, PrDetail, PrStack, PrSummary, group_stacks};
@@ -46,6 +47,9 @@ pub struct App {
     pub limit: u32,
     /// When true, the list hides PRs whose attention state is NotInvolved.
     pub only_involved: bool,
+    /// Screen area the list table was last rendered into, for mouse
+    /// hit-testing. None until the table has been drawn.
+    pub list_area: Option<Rect>,
 }
 
 impl App {
@@ -70,6 +74,7 @@ impl App {
             auto_refresh,
             limit,
             only_involved: false,
+            list_area: None,
         }
     }
 
@@ -225,6 +230,22 @@ impl App {
         if !self.rows.is_empty() {
             self.table_state.select(Some(self.rows.len() - 1));
         }
+    }
+
+    /// Map a screen position to a list row index, if it lands on one. The
+    /// table area includes a border (1 cell on each side) and a header row,
+    /// and its top data row is the one at `table_state.offset()`.
+    pub fn row_at(&self, column: u16, row: u16) -> Option<usize> {
+        let area = self.list_area?;
+        if column <= area.x || column + 1 >= area.x + area.width {
+            return None;
+        }
+        let top = area.y + 2; // border + header row
+        if row < top || row + 1 >= area.y + area.height {
+            return None;
+        }
+        let idx = self.table_state.offset() + (row - top) as usize;
+        (idx < self.rows.len()).then_some(idx)
     }
 
     pub fn apply_prs(&mut self, prs: Vec<PrSummary>) {
@@ -486,6 +507,36 @@ mod tests {
                 .any(|r| matches!(r, ListRow::StackHeader(_)))
         );
         assert_eq!(app.visible_pr_count(), 4);
+    }
+
+    #[test]
+    fn row_at_maps_clicks_inside_the_table() {
+        let mut app = app_with_fixture();
+        app.list_area = Some(Rect::new(0, 1, 80, 20));
+        // Border + header occupy the first two lines; row 0 is at y=3.
+        assert_eq!(app.row_at(5, 3), Some(0));
+        assert_eq!(app.row_at(5, 4), Some(1));
+        // Above the first data row, on the borders, or past the last row.
+        assert_eq!(app.row_at(5, 2), None);
+        assert_eq!(app.row_at(0, 3), None);
+        assert_eq!(app.row_at(79, 3), None);
+        assert_eq!(app.row_at(5, 3 + app.rows.len() as u16), None);
+        // Below the table area entirely.
+        assert_eq!(app.row_at(5, 20), None);
+    }
+
+    #[test]
+    fn row_at_accounts_for_scroll_offset() {
+        let mut app = app_with_fixture();
+        app.list_area = Some(Rect::new(0, 1, 80, 20));
+        *app.table_state.offset_mut() = 2;
+        assert_eq!(app.row_at(5, 3), Some(2));
+    }
+
+    #[test]
+    fn row_at_is_none_before_first_draw() {
+        let app = app_with_fixture();
+        assert_eq!(app.row_at(5, 3), None);
     }
 
     #[test]

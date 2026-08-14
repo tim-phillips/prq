@@ -9,6 +9,7 @@ use crate::model::{PrStack, PrSummary};
 use crate::ui::{attention_cell, checks_cell, format_age, review_cell};
 
 pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
+    app.list_area = None;
     if app.loading_list && app.rows.is_empty() {
         let para = Paragraph::new("Loading PRs…").block(Block::default().borders(Borders::ALL));
         frame.render_widget(para, area);
@@ -63,6 +64,7 @@ pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
         .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
         .block(Block::default().borders(Borders::ALL));
 
+    app.list_area = Some(area);
     frame.render_stateful_widget(table, area, &mut app.table_state);
 }
 
