@@ -12,7 +12,10 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{
+    DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent, KeyModifiers, MouseButton,
+    MouseEvent, MouseEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -54,6 +57,7 @@ fn run_app(
 
         match events::poll(Duration::from_millis(100))? {
             AppEvent::Key(k) => handle_key(&mut app, &worker, k),
+            AppEvent::Mouse(m) => handle_mouse(&mut app, m),
             AppEvent::Tick => {}
         }
 
@@ -142,6 +146,28 @@ fn handle_list_key(app: &mut App, worker: &Worker, key: KeyEvent) {
     }
 }
 
+fn handle_mouse(app: &mut App, mouse: MouseEvent) {
+    if app.show_help {
+        if matches!(mouse.kind, MouseEventKind::Down(_)) {
+            app.show_help = false;
+        }
+        return;
+    }
+    if !matches!(app.mode, ViewMode::List) {
+        return;
+    }
+    match mouse.kind {
+        MouseEventKind::ScrollDown => app.select_next(),
+        MouseEventKind::ScrollUp => app.select_prev(),
+        MouseEventKind::Down(MouseButton::Left) => {
+            if let Some(idx) = app.row_at(mouse.column, mouse.row) {
+                app.table_state.select(Some(idx));
+            }
+        }
+        _ => {}
+    }
+}
+
 fn open_selected(app: &mut App) {
     let url = match app.mode {
         ViewMode::List => app.selected_url(),
@@ -189,7 +215,8 @@ fn drain_worker(app: &mut App, worker: &Worker) {
 fn init_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
     enable_raw_mode().context("failed to enable raw mode")?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen).context("failed to enter alternate screen")?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+        .context("failed to enter alternate screen")?;
     let backend = CrosstermBackend::new(stdout);
     let terminal = Terminal::new(backend).context("failed to construct terminal")?;
     Ok(terminal)
@@ -197,7 +224,7 @@ fn init_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
 
 fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
     disable_raw_mode().ok();
-    execute!(terminal.backend_mut(), LeaveAlternateScreen).ok();
+    execute!(terminal.backend_mut(), DisableMouseCapture, LeaveAlternateScreen).ok();
     terminal.show_cursor().ok();
     Ok(())
 }
@@ -206,7 +233,7 @@ fn install_panic_hook() {
     let default = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
         default(info);
     }));
 }
