@@ -42,10 +42,17 @@ fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
         None => "—".to_string(),
     };
     let bold = Style::default().add_modifier(Modifier::BOLD);
-    let mut spans = vec![Span::styled(
-        format!("prq · {} · {count} open PR(s)", app.repo),
-        bold,
-    )];
+    let visible = app.visible_pr_count();
+    let count = if visible == count {
+        format!("{count} open PR(s)")
+    } else {
+        format!("{visible}/{count} open PR(s)")
+    };
+    let mut spans = vec![Span::styled(format!("prq · {} · {count}", app.repo), bold)];
+    if app.only_involved {
+        spans.push(Span::styled(" · ", bold));
+        spans.push(Span::styled("involved", bold.fg(Color::Cyan)));
+    }
     let counts = app.attention_counts();
     for (n, icon, color) in [
         (counts.to_review, "!", Color::Yellow),
@@ -73,7 +80,7 @@ fn draw_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     } else {
         let keys = match app.mode {
             ViewMode::List => {
-                "j/k move · g/G top/bottom · Enter detail/stack · o open · w workmux · r refresh · ? help · q quit"
+                "j/k move · g/G top/bottom · Enter detail/stack · m involved · o open · w workmux · r refresh · ? help · q quit"
             }
             ViewMode::Detail(_) => "Esc back · o open · w workmux · r refresh · ? help · q quit",
         };
@@ -100,6 +107,7 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
         Line::from("g            jump to top"),
         Line::from("G            jump to bottom"),
         Line::from("Enter        open PR detail (or expand/collapse a stack)"),
+        Line::from("m            toggle hiding PRs where you're not involved"),
         Line::from("Esc          back to list"),
         Line::from("o            open PR in browser"),
         Line::from("w            open PR branch in workmux"),

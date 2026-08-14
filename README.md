@@ -87,6 +87,10 @@ The collapsed row shows the bottom PR's title with `(stack of N)`, and its `Me`/
 
 Press `Enter` on a stack row to expand it in place — members appear beneath it, ordered bottom (closest to trunk) to top, and behave like normal rows. `Enter` on the header again collapses it. `o` on a collapsed stack opens the bottom PR in the browser. Expansion state is preserved across refreshes.
 
+#### Involved filter
+
+Press `m` to hide PRs where you're not involved (blank `Me` column) and see only the PRs that need something from you. While active, the header shows an `involved` badge and the PR count as `visible/total`; a stack stays visible if any of its members involves you. Press `m` again to show everything. The filter persists across refreshes.
+
 #### `Me` — does this PR need your attention?
 
 | Icon        | State                                                                    |
@@ -153,6 +157,7 @@ Pressing `Enter` on a PR opens a detail view with:
 | `g` / `Home` | Jump to first PR.                                                 |
 | `G` / `End`  | Jump to last PR.                                                  |
 | `Enter`      | Open detail view for the selected PR, or expand/collapse a stack. |
+| `m`          | Toggle hiding PRs where you're not involved (blank `Me` column).  |
 
 ### Detail view
 

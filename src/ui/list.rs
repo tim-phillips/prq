@@ -16,7 +16,12 @@ pub fn draw(frame: &mut Frame<'_>, area: Rect, app: &mut App) {
     }
 
     if app.rows.is_empty() {
-        let para = Paragraph::new("No open PRs.").block(Block::default().borders(Borders::ALL));
+        let msg = if app.only_involved && app.pr_count() > 0 {
+            "No open PRs involve you. Press m to show all."
+        } else {
+            "No open PRs."
+        };
+        let para = Paragraph::new(msg).block(Block::default().borders(Borders::ALL));
         frame.render_widget(para, area);
         return;
     }

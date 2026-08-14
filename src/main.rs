@@ -127,6 +127,7 @@ fn handle_list_key(app: &mut App, worker: &Worker, key: KeyEvent) {
         KeyCode::Char('k') | KeyCode::Up => app.select_prev(),
         KeyCode::Char('g') | KeyCode::Home => app.select_first(),
         KeyCode::Char('G') | KeyCode::End => app.select_last(),
+        KeyCode::Char('m') => app.toggle_only_involved(),
         KeyCode::Enter => {
             if app.toggle_selected_stack() {
                 return;

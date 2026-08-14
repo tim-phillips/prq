@@ -44,6 +44,8 @@ pub struct App {
     pub refresh_interval_secs: u64,
     pub auto_refresh: bool,
     pub limit: u32,
+    /// When true, the list hides PRs whose attention state is NotInvolved.
+    pub only_involved: bool,
 }
 
 impl App {
@@ -67,6 +69,7 @@ impl App {
             refresh_interval_secs,
             auto_refresh,
             limit,
+            only_involved: false,
         }
     }
 
@@ -96,9 +99,42 @@ impl App {
             .is_some_and(|g| self.expanded.contains(&g.bottom().number))
     }
 
+    /// Whether the group is shown under the current filter. A stack is shown
+    /// if any member involves the viewer.
+    fn group_visible(&self, stack: &PrStack) -> bool {
+        !self.only_involved || stack.attention_rollup() != Attention::NotInvolved
+    }
+
+    /// Open PRs visible under the current filter (collapsed stack members
+    /// count).
+    pub fn visible_pr_count(&self) -> usize {
+        self.groups
+            .iter()
+            .filter(|g| self.group_visible(g))
+            .map(|g| g.prs.len())
+            .sum()
+    }
+
+    /// Toggle hiding PRs where the viewer is not involved, keeping the
+    /// selection if it is still visible.
+    pub fn toggle_only_involved(&mut self) {
+        let keep = self.selected_number();
+        self.only_involved = !self.only_involved;
+        self.rebuild_rows();
+        if self.rows.is_empty() {
+            self.table_state.select(None);
+        } else {
+            let idx = keep.and_then(|n| self.row_index_for(n)).unwrap_or(0);
+            self.table_state.select(Some(idx));
+        }
+    }
+
     fn rebuild_rows(&mut self) {
         self.rows.clear();
         for (g, stack) in self.groups.iter().enumerate() {
+            if self.only_involved && stack.attention_rollup() == Attention::NotInvolved {
+                continue;
+            }
             if stack.is_stack() {
                 self.rows.push(ListRow::StackHeader(g));
                 if self.expanded.contains(&stack.bottom().number) {
@@ -384,6 +420,72 @@ mod tests {
         assert_eq!(counts.changes_requested, 1);
         assert_eq!(counts.conflicts, 1);
         assert_eq!(counts.ready, 1);
+    }
+
+    const INVOLVED_JSON: &str = r#"[
+        {"number": 1, "title": "review me", "author": {"login": "alice"}, "headRefName": "a", "baseRefName": "main",
+         "updatedAt": "2026-04-22T12:00:00Z", "reviewRequests": [{"login": "tim"}]},
+        {"number": 2, "title": "my pr", "author": {"login": "tim"}, "headRefName": "b", "baseRefName": "main",
+         "updatedAt": "2026-04-22T11:00:00Z", "mergeable": "MERGEABLE", "reviewDecision": "REVIEW_REQUIRED"},
+        {"number": 3, "title": "not mine", "author": {"login": "bob"}, "headRefName": "c", "baseRefName": "main",
+         "updatedAt": "2026-04-22T10:00:00Z"}
+    ]"#;
+
+    #[test]
+    fn only_involved_hides_uninvolved_prs() {
+        let mut app = App::new("example/repo".into(), 60, true, 100);
+        app.apply_prs(parse_pr_list(INVOLVED_JSON, Some("tim")).unwrap());
+        assert_eq!(app.rows.len(), 3);
+        assert_eq!(app.visible_pr_count(), 3);
+
+        app.toggle_only_involved();
+        assert_eq!(app.rows.len(), 2);
+        assert_eq!(app.visible_pr_count(), 2);
+        assert_eq!(app.pr_count(), 3); // total unchanged
+
+        app.toggle_only_involved();
+        assert_eq!(app.rows.len(), 3);
+    }
+
+    #[test]
+    fn only_involved_keeps_selection_when_still_visible() {
+        let mut app = App::new("example/repo".into(), 60, true, 100);
+        app.apply_prs(parse_pr_list(INVOLVED_JSON, Some("tim")).unwrap());
+        // Select #2 (tim's own PR), which survives the filter.
+        app.table_state.select(Some(1));
+        assert_eq!(app.selected_pr().unwrap().number, 2);
+        app.toggle_only_involved();
+        assert_eq!(app.selected_pr().unwrap().number, 2);
+    }
+
+    #[test]
+    fn only_involved_survives_refresh_and_can_empty_the_list() {
+        let mut app = App::new("example/repo".into(), 60, true, 100);
+        app.apply_prs(parse_pr_list(INVOLVED_JSON, None).unwrap());
+        app.toggle_only_involved();
+        // No viewer: nothing involves them.
+        assert!(app.rows.is_empty());
+        assert!(app.selected_row().is_none());
+        // Filter persists across a refresh.
+        app.apply_prs(parse_pr_list(INVOLVED_JSON, None).unwrap());
+        assert!(app.rows.is_empty());
+        assert_eq!(app.pr_count(), 3);
+    }
+
+    #[test]
+    fn stack_stays_visible_when_any_member_involves_viewer() {
+        // Stacked fixture: tim is requested on #202, so the stack survives
+        // even though #203 alone doesn't involve tim; #205 survives via tim's
+        // changes-requested review; #204 doesn't involve tim and is hidden.
+        let mut app = app_with_fixture();
+        app.toggle_only_involved();
+        assert_eq!(app.rows.len(), 2);
+        assert!(
+            app.rows
+                .iter()
+                .any(|r| matches!(r, ListRow::StackHeader(_)))
+        );
+        assert_eq!(app.visible_pr_count(), 4);
     }
 
     #[test]
