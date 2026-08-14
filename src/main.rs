@@ -109,7 +109,7 @@ fn handle_key(app: &mut App, worker: &Worker, key: KeyEvent) {
         },
         (_, KeyCode::Char('o')) => open_selected(app),
         (_, KeyCode::Char('w')) => open_in_workmux(app, worker),
-        (_, KeyCode::Esc) => {
+        (_, KeyCode::Esc | KeyCode::Backspace | KeyCode::Delete) => {
             if matches!(app.mode, ViewMode::Detail(_)) {
                 app.back_to_list();
             }
