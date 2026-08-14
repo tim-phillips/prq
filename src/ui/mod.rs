@@ -114,6 +114,7 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
         Line::from("r            refresh now"),
         Line::from("?            toggle this help"),
         Line::from("q / Ctrl-C   quit"),
+        Line::from("mouse        scroll to move selection, click to select a row"),
         Line::from(""),
         Line::from(Span::styled(
             "Me column",
